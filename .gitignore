@@ -1,0 +1,10 @@
+crocaun.exe
+*.syso
+crocaun.ini
+croc-config/
+crocaun-error.log
+received/
+mod.log
+build.log
+go.sum
+croc-patched/
