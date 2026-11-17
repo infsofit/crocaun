@@ -1,0 +1,170 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+env:
+  # Go 1.20 - последний Go, работающий на Windows 7. croc v10.0.12 - последняя версия croc, собираемая Go 1.20.
+  GO_VERSION: '1.20'
+  CROC_VERSION: v10.0.12
+
+jobs:
+  build-win32:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+
+      - name: Resolve modules (croc v10.0.12 + crocau patch)
+        shell: bash
+        run: |
+          set +e
+          {
+            go version &&
+            git clone --depth 1 --branch "${CROC_VERSION}" https://github.com/schollz/croc.git croc-patched &&
+            git -C croc-patched apply "$GITHUB_WORKSPACE/patches/croc-v10.0.12-sendfile-race.patch" &&
+            go mod edit -replace "github.com/schollz/croc/v10=./croc-patched" &&
+            go get github.com/btcsuite/btcd/btcec/v2@v2.3.2 github.com/decred/dcrd/dcrec/secp256k1/v4@v4.2.0 github.com/lxn/walk@latest github.com/lxn/win@latest github.com/schollz/croc/v10@${CROC_VERSION} &&
+            go mod tidy
+          } > mod.log 2>&1
+          rc=$?
+          cat mod.log
+          if [ $rc -ne 0 ]; then
+            msg=$(python3 -c "print(open('mod.log').read().replace('%','%25').replace('\r','%0D').replace('\n','%0A'))")
+            echo "::error title=modules::$msg"
+            exit 1
+          fi
+
+      - name: Download CA bundle (fallback roots for old Windows)
+        shell: bash
+        run: |
+          curl -fsSL --retry 3 -o certs/cacert.pem.tmp https://curl.se/ca/cacert.pem && mv certs/cacert.pem.tmp certs/cacert.pem || echo "CA bundle download failed, placeholder kept"
+          ls -l certs
+
+      - name: Windows manifest resource
+        run: |
+          go install github.com/akavel/rsrc@v0.10.2
+          "$(go env GOPATH)/bin/rsrc" -manifest crocau.manifest -ico assets/crocau.ico -arch 386 -o rsrc_windows_386.syso
+
+      - name: Build crocau.exe (windows/386, Go 1.20)
+        shell: bash
+        run: |
+          set +e
+          CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -trimpath -ldflags "-s -w -H windowsgui" -o crocau.exe . > build.log 2>&1
+          rc=$?
+          cat build.log
+          if [ $rc -ne 0 ]; then
+            msg=$(python3 -c "print(open('build.log').read().replace('%','%25').replace('\r','%0D').replace('\n','%0A'))")
+            echo "::error title=build::$msg"
+            exit 1
+          fi
+          ls -la crocau.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: crocau-win32
+          path: crocau.exe
+
+  test-win:
+    needs: build-win32
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: crocau-win32
+      - name: PE header check (must be 32-bit i386, GUI subsystem)
+        shell: powershell
+        run: |
+          $b = [IO.File]::ReadAllBytes("$PWD\crocau.exe")
+          $pe = [BitConverter]::ToInt32($b, 60)
+          $machine = [BitConverter]::ToUInt16($b, $pe + 4)
+          $subsystem = [BitConverter]::ToUInt16($b, $pe + 24 + 68)
+          "Machine = 0x{0:X}, Subsystem = {1}, Size = {2}" -f $machine, $subsystem, $b.Length
+          if ($machine -ne 0x14c) { throw "not i386" }
+          if ($subsystem -ne 2) { throw "not GUI subsystem" }
+      - name: Self-test (relay + text/files/folder transfers, 3-char password)
+        shell: powershell
+        timeout-minutes: 8
+        run: |
+          $env:CROCAU_TESTLOG = "$PWD\selftest.log"
+          $p = Start-Process -FilePath "$PWD\crocau.exe" -ArgumentList '--selftest' -Wait -PassThru
+          $out = ""
+          if (Test-Path $env:CROCAU_TESTLOG) { $out = Get-Content $env:CROCAU_TESTLOG -Raw -Encoding UTF8 }
+          if (Test-Path "$PWD\chattest.err") { $err = Get-Content "$PWD\chattest.err" -Raw -Encoding UTF8; if ($err) { $out = $out + "`r`nSTDERR:`r`n" + $err.Substring(0, [Math]::Min(3000, $err.Length)) } }
+          Write-Host $out
+          $msg = $out -replace "`r?`n", "%0A"
+          if ($p.ExitCode -ne 0 -or $out -notmatch "SELFTEST PASSED") { Write-Host "::error title=selftest::exit=$($p.ExitCode) $msg"; exit 1 } else { Write-Host "::notice title=selftest::$msg" }
+      - name: Firewall rules add/remove (path with spaces and Cyrillic)
+        shell: powershell
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          $dir = "$PWD\папка с пробелом"
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          Copy-Item "$PWD\crocau.exe" "$dir\crocau.exe"
+          $env:CROCAU_TESTLOG = "$PWD\fwtest.log"
+          $p = Start-Process -FilePath "$dir\crocau.exe" -ArgumentList '--fwtest' -PassThru
+          $done = $p.WaitForExit(90000)
+          if ($done) { $code = $p.ExitCode } else { $code = 99 }
+          Get-Process crocau -ErrorAction SilentlyContinue | Stop-Process -Force
+          $out = ""
+          if (Test-Path $env:CROCAU_TESTLOG) { $out = Get-Content $env:CROCAU_TESTLOG -Raw -Encoding UTF8 }
+          Write-Host $out
+          $msg = $out -replace "`r?`n", "%0A"
+          if ($code -ne 0 -or $out -notmatch ": OK") { Write-Host "::error title=fwtest::exit=$code $msg"; exit 1 } else { Write-Host "::notice title=fwtest::$msg" }
+      - name: GUI test (real window, handlers called programmatically)
+        shell: powershell
+        timeout-minutes: 7
+        run: |
+          $env:CROCAU_TESTLOG = "$PWD\guitest.log"
+          $p = Start-Process -FilePath "$PWD\crocau.exe" -ArgumentList '--guitest' -PassThru
+          $done = $p.WaitForExit(230000)
+          if ($done) { $code = $p.ExitCode } else { $code = 99 }
+          Get-Process crocau -ErrorAction SilentlyContinue | Stop-Process -Force
+          $out = ""
+          if (Test-Path $env:CROCAU_TESTLOG) { $out = Get-Content $env:CROCAU_TESTLOG -Raw -Encoding UTF8 }
+          Write-Host $out
+          $msg = $out -replace "`r?`n", "%0A"
+          if (Test-Path "$PWD\crocau-error.log") { $msg += "%0A" + (Get-Content "$PWD\crocau-error.log" -Raw) }
+          if ($code -ne 0 -or $out -notmatch "GUITEST PASSED") { Write-Host "::error title=guitest::exit=$code $msg"; exit 1 } else { Write-Host "::notice title=guitest::$msg" }
+
+      - name: Public relay check (informational)
+        shell: powershell
+        continue-on-error: true
+        timeout-minutes: 4
+        run: |
+          $env:CROCAU_TESTLOG = "$PWD\nettest.log"
+          $p = Start-Process -FilePath "$PWD\crocau.exe" -ArgumentList '--nettest' -PassThru
+          $done = $p.WaitForExit(150000)
+          if ($done) { $code = $p.ExitCode } else { $code = 99 }
+          Get-Process crocau -ErrorAction SilentlyContinue | Stop-Process -Force
+          $out = ""
+          if (Test-Path $env:CROCAU_TESTLOG) { $out = Get-Content $env:CROCAU_TESTLOG -Raw -Encoding UTF8 }
+          Write-Host $out
+          $msg = $out -replace "`r?`n", "%0A"
+          Write-Host "::notice title=nettest exit=$code::$msg"
+
+      - name: Chat transports check (informational)
+        shell: powershell
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          $env:CROCAU_TESTLOG = "$PWD\chattest.log"
+          $p = Start-Process -FilePath "$PWD\crocau.exe" -ArgumentList '--chattest' -PassThru -RedirectStandardError "$PWD\chattest.err"
+          $done = $p.WaitForExit(200000)
+          if ($done) { $code = $p.ExitCode } else { $code = 99 }
+          Get-Process crocau -ErrorAction SilentlyContinue | Stop-Process -Force
+          $out = ""
+          if (Test-Path $env:CROCAU_TESTLOG) { $out = Get-Content $env:CROCAU_TESTLOG -Raw -Encoding UTF8 }
+          Write-Host $out
+          $msg = $out -replace "`r?`n", "%0A"
+          Write-Host "::notice title=chattest exit=$code::$msg"
+
