@@ -131,7 +131,7 @@ jobs:
           $p = Start-Process -FilePath "$dir\crocaun.exe" -ArgumentList '--fwtest' -PassThru
           $done = $p.WaitForExit(90000)
           if ($done) { $code = $p.ExitCode } else { $code = 99 }
-          Get-Process crocau -ErrorAction SilentlyContinue | Stop-Process -Force
+          Get-Process crocaun -ErrorAction SilentlyContinue | Stop-Process -Force
           $out = ""
           if (Test-Path $env:CROCAU_TESTLOG) { $out = Get-Content $env:CROCAU_TESTLOG -Raw -Encoding UTF8 }
           Write-Host $out
@@ -145,7 +145,7 @@ jobs:
           $p = Start-Process -FilePath "$PWD\crocaun.exe" -ArgumentList '--guitest' -PassThru
           $done = $p.WaitForExit(230000)
           if ($done) { $code = $p.ExitCode } else { $code = 99 }
-          Get-Process crocau -ErrorAction SilentlyContinue | Stop-Process -Force
+          Get-Process crocaun -ErrorAction SilentlyContinue | Stop-Process -Force
           $out = ""
           if (Test-Path $env:CROCAU_TESTLOG) { $out = Get-Content $env:CROCAU_TESTLOG -Raw -Encoding UTF8 }
           Write-Host $out
@@ -162,7 +162,7 @@ jobs:
           $p = Start-Process -FilePath "$PWD\crocaun.exe" -ArgumentList '--nettest' -PassThru
           $done = $p.WaitForExit(150000)
           if ($done) { $code = $p.ExitCode } else { $code = 99 }
-          Get-Process crocau -ErrorAction SilentlyContinue | Stop-Process -Force
+          Get-Process crocaun -ErrorAction SilentlyContinue | Stop-Process -Force
           $out = ""
           if (Test-Path $env:CROCAU_TESTLOG) { $out = Get-Content $env:CROCAU_TESTLOG -Raw -Encoding UTF8 }
           Write-Host $out
@@ -178,7 +178,7 @@ jobs:
           $p = Start-Process -FilePath "$PWD\crocaun.exe" -ArgumentList '--chattest' -PassThru -RedirectStandardError "$PWD\chattest.err"
           $done = $p.WaitForExit(200000)
           if ($done) { $code = $p.ExitCode } else { $code = 99 }
-          Get-Process crocau -ErrorAction SilentlyContinue | Stop-Process -Force
+          Get-Process crocaun -ErrorAction SilentlyContinue | Stop-Process -Force
           $out = ""
           if (Test-Path $env:CROCAU_TESTLOG) { $out = Get-Content $env:CROCAU_TESTLOG -Raw -Encoding UTF8 }
           Write-Host $out
@@ -205,8 +205,8 @@ jobs:
           echo "version: $VER"
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             TAG="${GITHUB_REF#refs/tags/}"
-            gh release create "$TAG" crocaun.exe --title "crocau v$VER ($TAG)" --notes "Версия $VER. Windows 7+ (32-bit), один exe. croc $CROC_VERSION, Go $GO_VERSION." || gh release upload "$TAG" crocaun.exe --clobber
+            gh release create "$TAG" crocaun.exe --title "crocaun v$VER ($TAG)" --notes "Версия $VER. Windows 7+ (32-bit), один exe. croc $CROC_VERSION, Go $GO_VERSION." || gh release upload "$TAG" crocaun.exe --clobber
           else
             gh release delete latest --cleanup-tag -y || true
-            gh release create latest crocaun.exe --prerelease --target "$GITHUB_SHA" --title "crocau v$VER (latest, $SHORT)" --notes "Версия $VER. Автоматическая сборка коммита $SHORT. Windows 7+ (32-bit), один exe. croc $CROC_VERSION, Go $GO_VERSION."
+            gh release create latest crocaun.exe --prerelease --target "$GITHUB_SHA" --title "crocaun v$VER (latest, $SHORT)" --notes "Версия $VER. Автоматическая сборка коммита $SHORT. Windows 7+ (32-bit), один exe. croc $CROC_VERSION, Go $GO_VERSION."
           fi
