@@ -364,11 +364,6 @@ func loadSettings() Settings {
 	return loadSettingsFrom(p)
 }
 
-func fileExists(p string) bool {
-	st, err := os.Stat(p)
-	return err == nil && !st.IsDir()
-}
-
 // settingsReadOnly: файл защищён мастер-паролем, а он не введён - в этом сеансе ничего не пишем,
 // чтобы не затереть сохранённые пароли.
 var settingsReadOnly bool
