@@ -5,6 +5,7 @@
 //	crocaun.exe --croc ...    - внутренний режим: работает как croc (запускается самой программой на каждую передачу)
 //	crocaun.exe --selftest    - самотест передачи (для CI)
 //	crocaun.exe --guitest     - тест окна (для CI)
+//	crocaun.exe --battest     - тест самораспаковывающихся BAT-скриптов (для CI, Windows)
 //	crocaun.exe --send путь.. - окно с добавленными файлами (меню Проводника «Отправить через Crocau»)
 package main
 
@@ -30,6 +31,8 @@ func main() {
 			os.Exit(fwInstallMain())
 		case "--fw-remove":
 			os.Exit(fwRemoveMain())
+		case "--battest":
+			os.Exit(batTest())
 		case "--fwtest":
 			os.Exit(fwSelfTest())
 		case "--chattest":
