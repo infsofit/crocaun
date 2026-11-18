@@ -47,10 +47,33 @@ func batTest() int {
 		if err := os.WriteFile(filepath.Join(dir, "test.bat"), []byte(script), 0644); err != nil {
 			return dir, err.Error(), -1, 0
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+		testLogf("BAT RUN #%d dec=%q: старт", runN, dec)
+		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		defer cancel()
 		cmd := exec.CommandContext(ctx, "cmd.exe", "/c", "test.bat")
 		cmd.Dir = dir
+		// при зависании: снимок процессов (видно, какая команда ждёт) и принудительное завершение всего дерева
+		cmd.WaitDelay = 10 * time.Second
+		cmd.Cancel = func() error {
+			if o, err := exec.Command("tasklist", "/FO", "CSV", "/NH").Output(); err == nil {
+				var hung []string
+				for _, l := range strings.Split(string(o), "\n") {
+					low := strings.ToLower(l)
+					for _, n := range []string{"cmd.exe", "more.com", "certutil", "cscript", "powershell", "expand", "find.exe", "findstr", "chcp"} {
+						if strings.Contains(low, n) {
+							hung = append(hung, strings.TrimSpace(l))
+							break
+						}
+					}
+				}
+				testLogf("BAT RUN #%d: ТАЙМАУТ, процессы: %s", runN, strings.Join(hung, " ; "))
+			}
+			if cmd.Process != nil {
+				_ = exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(cmd.Process.Pid)).Run()
+				return cmd.Process.Kill()
+			}
+			return nil
+		}
 		var env []string
 		for _, e := range os.Environ() {
 			if !strings.HasPrefix(strings.ToUpper(e), "CROCAUN_") {
@@ -85,6 +108,12 @@ func batTest() int {
 			s = s[:700] + "..."
 		}
 		return s
+	}
+
+	// смоук: сама обвязка запуска cmd.exe работает и не зависает
+	{
+		dir, out, code, dur := runBat("@echo off\r\necho harness-ok\r\nexit /b 0\r\n", "")
+		check("HARNESS", code == 0 && strings.Contains(out, "harness-ok"), "("+dur.Round(10*time.Millisecond).String()+") "+dir[len(dir)-5:]+" "+short(out))
 	}
 
 	// исходное дерево

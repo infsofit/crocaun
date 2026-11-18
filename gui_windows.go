@@ -77,6 +77,7 @@ const (
 	destInternet = "Через интернет"
 	destWait     = "Ждать получателя в сети"
 	destExch     = "Через обменники"
+	destBat      = "BAT-скрипт (текст для мессенджера)"
 )
 
 var proxyTypeNames = []string{"socks5", "socks4", "http"}
@@ -176,6 +177,9 @@ func guiMain(test bool) int {
 		onTop           bool
 		scanLbl2        *walk.Label
 		exchOptsRow     *walk.Composite
+		batOptsRow      *walk.Composite
+		batExeCB        *walk.CheckBox
+		batPartCB       *walk.ComboBox
 		updDest         func()
 		shellCB         *walk.CheckBox
 		updSrc          func()
@@ -201,6 +205,7 @@ func guiMain(test bool) int {
 	var shareW ShareWatcher
 	var peers []Peer
 	var curHost *HostSession
+	batBusy := false
 	var history, histTexts []string
 	curLAN := false
 	hostName, _ := os.Hostname()
@@ -446,6 +451,9 @@ func guiMain(test bool) int {
 			return
 		}
 		exchOptsRow.SetVisible(strings.TrimSpace(destCB.Text()) == destExch)
+		if batOptsRow != nil {
+			batOptsRow.SetVisible(strings.TrimSpace(destCB.Text()) == destBat)
+		}
 	}
 	updSrc = func() {
 		if recvLinkRow == nil || srcCB == nil {
@@ -535,7 +543,8 @@ func guiMain(test bool) int {
 		pw := strings.TrimSpace(sendPw.Text())
 		target := strings.TrimSpace(destCB.Text())
 		isExch := target == destExch
-		if utf8.RuneCountInString(pw) < 3 && !(isExch && pw == "") {
+		isBat := target == destBat
+		if !isBat && utf8.RuneCountInString(pw) < 3 && !(isExch && pw == "") {
 			warn("Пароль должен быть не короче 3 символов" + map[bool]string{true: " (или оставьте пустым: архив без пароля).", false: "."}[isExch])
 			return
 		}
@@ -543,7 +552,7 @@ func guiMain(test bool) int {
 		if strings.TrimSpace(text) == "" {
 			text = ""
 		}
-		if text == "" && len(items) == 0 && !(isExch && exchExeCB.Checked()) {
+		if text == "" && len(items) == 0 && !(isExch && exchExeCB.Checked()) && !(isBat && batExeCB.Checked()) {
 			warn("Введите текст и/или добавьте файлы или папки (можно перетащить их в окно).")
 			return
 		}
@@ -555,6 +564,33 @@ func guiMain(test bool) int {
 		}
 		cur := collect()
 		saveNow(cur)
+		if isBat {
+			if batBusy {
+				return
+			}
+			batBusy = true
+			_ = sendBtn.SetEnabled(false)
+			setLog("Подготовка скрипта (упаковка и кодирование)...")
+			opts := BatOptions{Text: text, Items: append([]string(nil), items...), EmbedExe: batExeCB.Checked()}
+			if i := batPartCB.CurrentIndex(); i >= 0 && i < len(batPartSizes) {
+				opts.PartSize = batPartSizes[i]
+			}
+			go func() {
+				res, err := buildBat(opts)
+				mw.Synchronize(func() {
+					batBusy = false
+					_ = sendBtn.SetEnabled(curJob == nil)
+					if err != nil {
+						setLog("Не удалось подготовить скрипт: " + err.Error())
+						warn(err.Error())
+						return
+					}
+					setLog("Скрипт готов.\r\n" + res.describe())
+					showBatDialog(mw, res)
+				})
+			}()
+			return
+		}
 		if isExch {
 			lastLink = ""
 			exchLinkBtn.SetEnabled(false)
@@ -782,7 +818,7 @@ func guiMain(test bool) int {
 			found := discoverPeers(2*time.Second, instanceID, "", plan.Targets)
 			mw.Synchronize(func() {
 				peers = found
-				destItems := []string{destInternet, destWait, destExch}
+				destItems := []string{destInternet, destWait, destExch, destBat}
 				srcItems := []string{destInternet, destExch}
 				shareItems := []string{allDevices}
 				for _, p := range found {
@@ -1259,9 +1295,9 @@ func guiMain(test bool) int {
 								Layout: HBox{MarginsZero: true},
 								Children: []Widget{
 									Label{Text: "Куда:"},
-									ComboBox{AssignTo: &destCB, Editable: true, Model: []string{destInternet, destWait, destExch}, CurrentIndex: 0, MinSize: Size{Width: 180},
+									ComboBox{AssignTo: &destCB, Editable: true, Model: []string{destInternet, destWait, destExch, destBat}, CurrentIndex: 0, MinSize: Size{Width: 180},
 										OnCurrentIndexChanged: func() { updDest() }, OnTextChanged: func() { updDest() },
-										ToolTipText: "«Через интернет» - публичные relay croc (получатель с Crocau).\r\n«Через обменники» - файл выкладывается на анонимный файлообменник, вы получаете ссылку; получателю Crocau не нужен. Пароль в этом режиме необязателен: если он задан, файлы в архиве шифруются.\r\n«Ждать получателя в сети» - это устройство открывает порт и ждёт, получатель находит его на вкладке «Получить» или вводит ваш IP.\r\nУстройство из списка - получатель в режиме обмена (вкладка «Обмен»). Можно вписать IP вручную, например 192.168.1.5."},
+										ToolTipText: "«Через интернет» - публичные relay croc (получатель с Crocau).\r\n«Через обменники» - файл выкладывается на анонимный файлообменник, вы получаете ссылку; получателю Crocau не нужен. Пароль в этом режиме необязателен: если он задан, файлы в архиве шифруются.\r\n«Ждать получателя в сети» - это устройство открывает порт и ждёт, получатель находит его на вкладке «Получить» или вводит ваш IP.\r\nУстройство из списка - получатель в режиме обмена (вкладка «Обмен»). Можно вписать IP вручную, например 192.168.1.5.\r\n«BAT-скрипт» - файлы и текст превращаются в текст самораспаковывающегося скрипта: его можно отправить в любом мессенджере (даже текстовом), получателю нужна только Windows и пароль не нужен."},
 									PushButton{Text: "Найти в сети", OnClicked: refreshPeersSend},
 									HSpacer{},
 								},
@@ -1274,6 +1310,16 @@ func guiMain(test bool) int {
 									CheckBox{AssignTo: &exchExeCB, Text: "Приложить программу Crocaun", ToolTipText: "Программа crocaun.exe кладётся в тот же архив, что и файлы (одна ссылка). Если файлов и текста нет - уходит только программа. Архив открывается Проводником Windows без архиваторов; пароль для него - только латиницей и цифрами (традиционное шифрование, слабее AES)"},
 									HSpacer{},
 									PushButton{AssignTo: &exchLinkBtn, Text: "Скопировать ссылку", Enabled: false, OnClicked: func() { copyLink() }},
+								},
+							},
+							Composite{
+								AssignTo: &batOptsRow, Visible: false,
+								Layout: HBox{MarginsZero: true},
+								Children: []Widget{
+									CheckBox{AssignTo: &batExeCB, Text: "Встроить crocaun.exe", ToolTipText: "Программа кладётся внутрь скрипта и распаковывается вместе с файлами (даже если файлов и текста нет). Размер текста вырастет примерно на 7-8 МБ - для мессенджеров это слишком много, подходит для сохранения в файл .bat. Сама программа работает на Windows 7 и новее."},
+									Label{Text: "Части:"},
+									ComboBox{AssignTo: &batPartCB, Model: batPartLabels, CurrentIndex: 1, MinSize: Size{Width: 130}, ToolTipText: "Скрипт режется на части по границам строк: каждую часть можно отправить отдельным сообщением. Получатель вставляет все части по порядку в один .bat файл."},
+									HSpacer{},
 								},
 							},
 							CheckBox{AssignTo: &compressCB, Text: "Умное сжатие", ToolTipText: smartCompressHint(), Checked: st.Compress},

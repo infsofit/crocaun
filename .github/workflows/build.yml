@@ -121,11 +121,11 @@ jobs:
           if ($p.ExitCode -ne 0 -or $out -notmatch "SELFTEST PASSED") { Write-Host "::error title=selftest::exit=$($p.ExitCode) $msg"; exit 1 } else { Write-Host "::notice title=selftest::$msg" }
       - name: BAT self-extractor (certutil / VBScript / PowerShell decoders, expand.exe)
         shell: powershell
-        timeout-minutes: 15
+        timeout-minutes: 14
         run: |
           $env:CROCAU_TESTLOG = "$PWD\battest.log"
           $p = Start-Process -FilePath "$PWD\crocaun.exe" -ArgumentList '--battest' -PassThru
-          $done = $p.WaitForExit(840000)
+          $done = $p.WaitForExit(600000)
           if ($done) { $code = $p.ExitCode } else { $code = 99 }
           Get-Process crocaun -ErrorAction SilentlyContinue | Stop-Process -Force
           $out = ""
