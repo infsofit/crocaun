@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -115,6 +117,8 @@ func batTest() int {
 		dir, out, code, dur := runBat("@echo off\r\necho harness-ok\r\nexit /b 0\r\n", "")
 		check("HARNESS", code == 0 && strings.Contains(out, "harness-ok"), "("+dur.Round(10*time.Millisecond).String()+") "+dir[len(dir)-5:]+" "+short(out))
 	}
+
+	cabExperiment(root)
 
 	// исходное дерево
 	src := filepath.Join(root, "src")
@@ -228,4 +232,97 @@ func batTest() int {
 	}
 	testLogf("BATTEST PASSED")
 	return 0
+}
+
+// describeCAB - шестнадцатеричные дампы основных структур CAB (для сравнения эталона и нашей записи).
+func describeCAB(b []byte) string {
+	if len(b) < 44 {
+		return "слишком короткий"
+	}
+	le := binary.LittleEndian
+	coffFiles, coffData := int(le.Uint32(b[16:])), int(le.Uint32(b[36:]))
+	h := func(x []byte, n int) string {
+		if len(x) > n {
+			x = x[:n]
+		}
+		return fmt.Sprintf("%x", x)
+	}
+	return fmt.Sprintf("size=%d hdr=%s folder=%s cffile=%s cfdata=%s", len(b), h(b, 36), h(b[36:], 8),
+		h(b[coffFiles:], coffData-coffFiles), h(b[coffData:], 16))
+}
+
+// cabExperiment (только справка в логе): настоящий makecab делает эталонный CAB, и этот же файл + варианты нашей записи
+// распаковываются настоящим expand.exe. Так видно, какие особенности формата expand принимает.
+func cabExperiment(root string) {
+	dir := filepath.Join(root, "cabx")
+	_ = os.MkdirAll(dir, 0755)
+	var data []byte
+	for len(data) < 90000 {
+		data = append(data, []byte("The quick brown fox jumps over the lazy dog. 0123456789\r\n")...)
+	}
+	data = append(data, randBytes(40000)...)
+	_ = os.WriteFile(filepath.Join(dir, "a.bin"), data, 0644)
+
+	run := func(name string, args ...string) (string, int) {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, name, args...)
+		cmd.Dir = dir
+		cmd.WaitDelay = 5 * time.Second
+		hideWindow(cmd)
+		var buf bytes.Buffer
+		cmd.Stdout, cmd.Stderr = &buf, &buf
+		err := cmd.Run()
+		code := 0
+		if err != nil {
+			code = -1
+			if ee, ok := err.(*exec.ExitError); ok {
+				code = ee.ExitCode()
+			}
+		}
+		return strings.TrimSpace(strings.ReplaceAll(buf.String(), "\r\n", " | ")), code
+	}
+	tryExpand := func(label, cab string) {
+		outDir := filepath.Join(dir, "out-"+label)
+		_ = os.MkdirAll(outDir, 0755)
+		out, code := run("expand.exe", "-F:*", cab, outDir)
+		got, err := os.ReadFile(filepath.Join(outDir, "a.bin"))
+		ok := err == nil && bytes.Equal(got, data)
+		if len(out) > 300 {
+			out = out[:300]
+		}
+		testLogf("BAT CABX %s: expand code=%d совпало=%v out=%q", label, code, ok, out)
+	}
+
+	out, code := run("makecab.exe", "/D", "CompressionType=MSZIP", "a.bin", "ref.cab")
+	if len(out) > 200 {
+		out = out[:200]
+	}
+	testLogf("BAT CABX makecab: code=%d out=%q", code, out)
+	if ref, err := os.ReadFile(filepath.Join(dir, "ref.cab")); err == nil {
+		testLogf("BAT CABX ref  : %s", describeCAB(ref))
+		tryExpand("ref", filepath.Join(dir, "ref.cab"))
+	}
+	files := []cabFile{{Name: "a.bin", Data: data, Mod: time.Now()}}
+	for _, v := range []struct {
+		name string
+		o    cabOpts
+	}{
+		{"default", cabOpts{}},
+		{"zerosum", cabOpts{zeroSum: true}},
+		{"stored", cabOpts{stored: true}},
+		{"stored-zerosum", cabOpts{stored: true, zeroSum: true}},
+	} {
+		b, err := buildCABOpts(files, v.o)
+		if err != nil {
+			testLogf("BAT CABX %s: сборка: %v", v.name, err)
+			continue
+		}
+		p := filepath.Join(dir, v.name+".cab")
+		_ = os.WriteFile(p, b, 0644)
+		if v.name == "default" {
+			testLogf("BAT CABX ours : %s", describeCAB(b))
+		}
+		tryExpand(v.name, p)
+	}
 }

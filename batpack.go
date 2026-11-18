@@ -46,34 +46,33 @@ type BatResult struct {
 
 // Шапка скрипта. Только ASCII: получатель может сохранить файл в любой кодировке.
 // Первая строка - @rem: если Блокнот добавит BOM, испортится только она.
+// Каждая строка шапки начинается НЕ с символа base64 (@ : > % #), а строки данных - с него: поэтому данные
+// выбираются одним быстрым findstr (more +N на больших файлах катастрофически медленный).
 // Декодер можно принудительно выбрать переменной CROCAUN_DEC=cert|vbs|ps (для тестов), CROCAUN_NOPAUSE отключает pause.
 const batHeader = `@rem crocaun self-extracting script. Paste ALL parts, in order, into one .bat file and run it.
 @echo off
 %~d0
-cd /D "%~p0"
-setlocal
-set "CN_F=%~f0"
-set "CN_L=@LINES@"
-set "CN_T=%TEMP%\cn%RANDOM%%RANDOM%"
-md "%CN_T%" 2>nul
-if not exist "%CN_T%\" set "CN_T=%CD%\cn%RANDOM%"
-md "%CN_T%" 2>nul
-set "CN_N="
-for /f "delims=:" %%n in ('findstr /n /b /c:"#PAYLOAD" "%CN_F%"') do set "CN_N=%%n"
-if not defined CN_N goto cn_bad
-more +%CN_N% "%CN_F%" > "%CN_T%\p.b64"
-set "CN_G=0"
-for /f %%c in ('type "%CN_T%\p.b64" ^| find /c /v ""') do set "CN_G=%%c"
-if %CN_G% LSS %CN_L% goto cn_short
-set "CN_C=%CN_T%\a.cab"
-if /i "%CROCAUN_DEC%"=="vbs" goto cn_vbs
-if /i "%CROCAUN_DEC%"=="ps" goto cn_ps
-certutil -f -decode "%CN_T%\p.b64" "%CN_C%" >nul 2>&1
-if exist "%CN_C%" for %%a in ("%CN_C%") do if %%~za GTR 0 goto cn_ok
-del "%CN_C%" 2>nul
-if /i "%CROCAUN_DEC%"=="cert" goto cn_fail
+@cd /D "%~p0"
+@setlocal EnableExtensions
+@set "CN_F=%~f0"
+@set "CN_L=@LINES@"
+@set "CN_T=%TEMP%\cn%RANDOM%%RANDOM%"
+@md "%CN_T%" 2>nul
+@if not exist "%CN_T%\" set "CN_T=%CD%\cn%RANDOM%"
+@md "%CN_T%" 2>nul
+@findstr /b /r "[A-Za-z0-9+/=]" "%CN_F%" > "%CN_T%\p.b64"
+@set "CN_G=0"
+@for /f %%c in ('type "%CN_T%\p.b64" ^| find /c /v ""') do set "CN_G=%%c"
+@if %CN_G% LSS %CN_L% goto cn_short
+@set "CN_C=%CN_T%\a.cab"
+@if /i "%CROCAUN_DEC%"=="vbs" goto cn_vbs
+@if /i "%CROCAUN_DEC%"=="ps" goto cn_ps
+@certutil -f -decode "%CN_T%\p.b64" "%CN_C%" >nul 2>&1
+@if exist "%CN_C%" for %%a in ("%CN_C%") do if %%~za GTR 0 goto cn_ok
+@del "%CN_C%" 2>nul
+@if /i "%CROCAUN_DEC%"=="cert" goto cn_fail
 :cn_vbs
-del "%CN_T%\d.vbs" 2>nul
+@del "%CN_T%\d.vbs" 2>nul
 >>"%CN_T%\d.vbs" echo Set x=CreateObject("MSXML2.DOMDocument")
 >>"%CN_T%\d.vbs" echo Set e=x.createElement("b")
 >>"%CN_T%\d.vbs" echo e.dataType="bin.base64"
@@ -87,49 +86,49 @@ del "%CN_T%\d.vbs" 2>nul
 >>"%CN_T%\d.vbs" echo s.Write e.nodeTypedValue
 >>"%CN_T%\d.vbs" echo s.SaveToFile WScript.Arguments(1),2
 >>"%CN_T%\d.vbs" echo s.Close
-cscript //nologo //B "%CN_T%\d.vbs" "%CN_T%\p.b64" "%CN_C%" >nul 2>&1
-if exist "%CN_C%" for %%a in ("%CN_C%") do if %%~za GTR 0 goto cn_ok
-del "%CN_C%" 2>nul
-if /i "%CROCAUN_DEC%"=="vbs" goto cn_fail
+@cscript //nologo //B "%CN_T%\d.vbs" "%CN_T%\p.b64" "%CN_C%" >nul 2>&1
+@if exist "%CN_C%" for %%a in ("%CN_C%") do if %%~za GTR 0 goto cn_ok
+@del "%CN_C%" 2>nul
+@if /i "%CROCAUN_DEC%"=="vbs" goto cn_fail
 :cn_ps
-set "CN_P=%CN_T%\p.b64"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "[IO.File]::WriteAllBytes($env:CN_C,[Convert]::FromBase64String(([IO.File]::ReadAllText($env:CN_P) -replace '\s','')))" >nul 2>&1
-if exist "%CN_C%" for %%a in ("%CN_C%") do if %%~za GTR 0 goto cn_ok
-goto cn_fail
+@set "CN_P=%CN_T%\p.b64"
+@powershell -NoProfile -ExecutionPolicy Bypass -Command "[IO.File]::WriteAllBytes($env:CN_C,[Convert]::FromBase64String(([IO.File]::ReadAllText($env:CN_P) -replace '\s','')))" >nul 2>&1
+@if exist "%CN_C%" for %%a in ("%CN_C%") do if %%~za GTR 0 goto cn_ok
+@goto cn_fail
 :cn_ok
-expand -F:* "%CN_C%" . >nul
-if errorlevel 1 goto cn_xerr
-rd /s /q "%CN_T%" 2>nul
-echo crocaun: done. Files are extracted to: %CD%
+@expand -F:* "%CN_C%" . >nul
+@if errorlevel 1 goto cn_xerr
+@rd /s /q "%CN_T%" 2>nul
+@echo crocaun: done. Files are extracted to: %CD%
 @EXENOTE@
-if not exist "@MSG@" goto cn_end
-echo.
-echo ---------- message ----------
-for /f "tokens=2 delims=:" %%p in ('chcp') do set "CN_CP=%%p"
-chcp 65001 >nul 2>&1
-type "@MSG@"
-chcp %CN_CP% >nul 2>&1
-echo.
+@if not exist "@MSG@" goto cn_end
+@echo.
+@echo ---------- message ----------
+@for /f "tokens=2 delims=:" %%p in ('chcp') do set "CN_CP=%%p"
+@chcp 65001 >nul 2>&1
+@type "@MSG@"
+@chcp %CN_CP% >nul 2>&1
+@echo.
 :cn_end
-set "CN_RC=0"
-goto cn_fin
+@set "CN_RC=0"
+@goto cn_fin
 :cn_short
-echo crocaun: the script is incomplete (%CN_G% of %CN_L% lines). Paste ALL parts, in order, and run it again.
-goto cn_err
+@echo crocaun: the script is incomplete (%CN_G% of %CN_L% lines). Paste ALL parts, in order, and run it again.
+@goto cn_err
 :cn_bad
-echo crocaun: payload marker not found. The text was changed while copying.
-goto cn_err
+@echo crocaun: payload marker not found. The text was changed while copying.
+@goto cn_err
 :cn_fail
-echo crocaun: cannot decode the data (certutil, VBScript and PowerShell are unavailable or blocked).
-goto cn_err
+@echo crocaun: cannot decode the data (certutil, VBScript and PowerShell are unavailable or blocked).
+@goto cn_err
 :cn_xerr
-echo crocaun: expand.exe failed. The data is damaged: paste all parts again without changes.
+@echo crocaun: expand.exe failed. The data is damaged: paste all parts again without changes.
 :cn_err
-rd /s /q "%CN_T%" 2>nul
-set "CN_RC=1"
+@rd /s /q "%CN_T%" 2>nul
+@set "CN_RC=1"
 :cn_fin
-if not defined CROCAUN_NOPAUSE echo %cmdcmdline% | find /i "/c" >nul && pause
-exit /b %CN_RC%
+@if not defined CROCAUN_NOPAUSE echo %cmdcmdline% | find /i "/c" >nul && pause
+@exit /b %CN_RC%
 #PAYLOAD
 `
 

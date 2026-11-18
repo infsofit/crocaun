@@ -86,9 +86,24 @@ func mszipBlock(raw []byte) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-// buildCAB собирает архив из файлов. Имена с символами не из ASCII получают флаг UTF-8
+// cabOpts - режимы записи (нужны для диагностики на разных версиях expand.exe).
+type cabOpts struct {
+	zeroSum bool // контрольные суммы блоков = 0 («не вычислялись», допустимо по спецификации)
+	stored  bool // блоки без сжатия: deflate «stored» с флагом последнего блока
+}
+
+// mszipStored - блок MSZIP из одного несжатого deflate-блока (BFINAL=1).
+func mszipStored(raw []byte) []byte {
+	b := make([]byte, 0, len(raw)+7)
+	b = append(b, 'C', 'K', 0x01, byte(len(raw)), byte(len(raw)>>8), ^byte(len(raw)), ^byte(len(raw)>>8))
+	return append(b, raw...)
+}
+
+func buildCAB(files []cabFile) ([]byte, error) { return buildCABOpts(files, cabOpts{}) }
+
+// buildCABOpts собирает архив из файлов. Имена с символами не из ASCII получают флаг UTF-8
 // (expand.exe разных версий понимает его по-разному, поэтому вызывающий код обычно подаёт ASCII).
-func buildCAB(files []cabFile) ([]byte, error) {
+func buildCABOpts(files []cabFile, o cabOpts) ([]byte, error) {
 	if len(files) == 0 {
 		return nil, errors.New("cab: нет файлов")
 	}
@@ -99,9 +114,14 @@ func buildCAB(files []cabFile) ([]byte, error) {
 	var blocks [][]byte // готовые CFDATA (заголовок + данные)
 	buf := make([]byte, 0, cabBlockSize)
 	flush := func() error {
-		comp, err := mszipBlock(buf)
-		if err != nil {
-			return err
+		var comp []byte
+		if o.stored {
+			comp = mszipStored(buf)
+		} else {
+			var err error
+			if comp, err = mszipBlock(buf); err != nil {
+				return err
+			}
 		}
 		if len(comp) > 0xffff {
 			return errors.New("cab: блок не поместился")
@@ -112,6 +132,9 @@ func buildCAB(files []cabFile) ([]byte, error) {
 		copy(blk[8:], comp)
 		sum := cabChecksum(blk[4:8], 0)
 		sum = cabChecksum(comp, sum)
+		if o.zeroSum {
+			sum = 0
+		}
 		binary.LittleEndian.PutUint32(blk[0:], sum)
 		blocks = append(blocks, blk)
 		buf = buf[:0]
