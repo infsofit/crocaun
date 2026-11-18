@@ -67,7 +67,7 @@ jobs:
           fi
           ls -la crocaun.exe
 
-      - name: Size report (informational: where the bytes are)
+      - name: Size report (informational, where the bytes are)
         shell: bash
         continue-on-error: true
         run: |
