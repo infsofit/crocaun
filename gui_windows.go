@@ -569,7 +569,7 @@ func guiMain(test bool) int {
 				return
 			}
 			batBusy = true
-			_ = sendBtn.SetEnabled(false)
+			sendBtn.SetEnabled(false)
 			setLog("Подготовка скрипта (упаковка и кодирование)...")
 			opts := BatOptions{Text: text, Items: append([]string(nil), items...), EmbedExe: batExeCB.Checked()}
 			if i := batPartCB.CurrentIndex(); i >= 0 && i < len(batPartSizes) {
@@ -579,7 +579,7 @@ func guiMain(test bool) int {
 				res, err := buildBat(opts)
 				mw.Synchronize(func() {
 					batBusy = false
-					_ = sendBtn.SetEnabled(curJob == nil)
+					sendBtn.SetEnabled(curJob == nil)
 					if err != nil {
 						setLog("Не удалось подготовить скрипт: " + err.Error())
 						warn(err.Error())
