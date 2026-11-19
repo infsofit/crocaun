@@ -251,23 +251,16 @@ func describeCAB(b []byte) string {
 		h(b[coffFiles:], coffData-coffFiles), h(b[coffData:], 16))
 }
 
-// cabExperiment (только справка в логе): настоящий makecab делает эталонный CAB, и этот же файл + варианты нашей записи
-// распаковываются настоящим expand.exe. Так видно, какие особенности формата expand принимает.
+// cabExperiment (только справка в логе): как настоящий expand.exe ведёт себя с нашим CAB - вложенные папки, пустые файлы,
+// вид пути назначения (с обратной косой чертой, "." и т.п.).
 func cabExperiment(root string) {
 	dir := filepath.Join(root, "cabx")
 	_ = os.MkdirAll(dir, 0755)
-	var data []byte
-	for len(data) < 90000 {
-		data = append(data, []byte("The quick brown fox jumps over the lazy dog. 0123456789\r\n")...)
-	}
-	data = append(data, randBytes(40000)...)
-	_ = os.WriteFile(filepath.Join(dir, "a.bin"), data, 0644)
-
-	run := func(name string, args ...string) (string, int) {
+	run := func(wd, name string, args ...string) (string, int) {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 		cmd := exec.CommandContext(ctx, name, args...)
-		cmd.Dir = dir
+		cmd.Dir = wd
 		cmd.WaitDelay = 5 * time.Second
 		hideWindow(cmd)
 		var buf bytes.Buffer
@@ -280,59 +273,71 @@ func cabExperiment(root string) {
 				code = ee.ExitCode()
 			}
 		}
-		return strings.TrimSpace(strings.ReplaceAll(buf.String(), "\r\n", " | ")), code
-	}
-	tryExpand := func(label, cab string) {
-		outDir := filepath.Join(dir, "out-"+label)
-		_ = os.MkdirAll(outDir, 0755)
-		out, code := run("expand.exe", cab, "-F:*", outDir)
-		got, err := os.ReadFile(filepath.Join(outDir, "a.bin"))
-		ok := err == nil && bytes.Equal(got, data)
-		if len(out) > 300 {
-			out = out[:300]
+		o := buf.String()
+		if i := strings.Index(o, "Expanding Files"); i >= 0 {
+			o = o[i:]
 		}
+		o = strings.TrimSpace(strings.ReplaceAll(o, "\r\n", " | "))
+		if len(o) > 260 {
+			o = o[:260]
+		}
+		return o, code
+	}
+	list := func(d string) []string {
 		var have []string
-		_ = filepath.WalkDir(outDir, func(p string, d fs.DirEntry, err error) error {
-			if err == nil && !d.IsDir() {
-				fi, _ := d.Info()
-				r, _ := filepath.Rel(outDir, p)
+		_ = filepath.WalkDir(d, func(p string, e fs.DirEntry, err error) error {
+			if err == nil && !e.IsDir() {
+				fi, _ := e.Info()
+				r, _ := filepath.Rel(d, p)
 				have = append(have, fmt.Sprintf("%s(%d)", r, fi.Size()))
 			}
 			return nil
 		})
-		testLogf("BAT CABX %s: expand code=%d совпало=%v в папке=%v ожидалось a.bin(%d)", label, code, ok, have, len(data))
-		_ = out
+		return have
 	}
-
-	out, code := run("makecab.exe", "/D", "CompressionType=MSZIP", "a.bin", "ref.cab")
-	if len(out) > 200 {
-		out = out[:200]
-	}
-	testLogf("BAT CABX makecab: code=%d out=%q", code, out)
-	if ref, err := os.ReadFile(filepath.Join(dir, "ref.cab")); err == nil {
-		testLogf("BAT CABX ref  : %s", describeCAB(ref))
-		tryExpand("ref", filepath.Join(dir, "ref.cab"))
-	}
-	files := []cabFile{{Name: "a.bin", Data: data, Mod: time.Now()}}
-	for _, v := range []struct {
-		name string
-		o    cabOpts
-	}{
-		{"default", cabOpts{}},
-		{"zerosum", cabOpts{zeroSum: true}},
-		{"stored", cabOpts{stored: true}},
-		{"stored-zerosum", cabOpts{stored: true, zeroSum: true}},
-	} {
-		b, err := buildCABOpts(files, v.o)
+	mk := func(files []cabFile) string {
+		b, err := buildCAB(files)
 		if err != nil {
-			testLogf("BAT CABX %s: сборка: %v", v.name, err)
-			continue
+			testLogf("BAT CABX build: %v", err)
+			return ""
 		}
-		p := filepath.Join(dir, v.name+".cab")
+		p := filepath.Join(dir, "t.cab")
 		_ = os.WriteFile(p, b, 0644)
-		if v.name == "default" {
-			testLogf("BAT CABX ours : %s", describeCAB(b))
+		return p
+	}
+	now := time.Now()
+	nested := []cabFile{
+		{"top.txt", []byte("top"), now},
+		{`d1\n.txt`, []byte("nested"), now},
+		{`d1\d2\deep.bin`, randBytes(5000), now},
+	}
+	withEmpty := append(append([]cabFile{}, nested...), cabFile{"e.dat", nil, now})
+	single := []cabFile{{"only.txt", []byte("single file"), now}}
+
+	type tc struct {
+		name  string
+		files []cabFile
+		mode  string // dest: plain, slash, dot, pre (папки созданы заранее, dest со слэшем)
+	}
+	for _, c := range []tc{
+		{"nested+plain", nested, "plain"}, {"nested+slash", nested, "slash"}, {"nested+dot", nested, "dot"},
+		{"nested+pre", nested, "pre"}, {"empty+slash", withEmpty, "slash"}, {"single+plain", single, "plain"},
+		{"single+slash", single, "slash"}, {"single+dot", single, "dot"},
+	} {
+		cab := mk(c.files)
+		out := filepath.Join(dir, "o-"+strings.ReplaceAll(c.name, "+", "-"))
+		_ = os.MkdirAll(out, 0755)
+		wd, dest := dir, out
+		switch c.mode {
+		case "slash":
+			dest = out + `\`
+		case "dot":
+			wd, dest = out, "."
+		case "pre":
+			_ = os.MkdirAll(filepath.Join(out, "d1", "d2"), 0755)
+			dest = out + `\`
 		}
-		tryExpand(v.name, p)
+		o, code := run(wd, "expand.exe", cab, "-F:*", dest)
+		testLogf("BAT CABX %-13s code=%d files=%v | %s", c.name, code, list(out), o)
 	}
 }
