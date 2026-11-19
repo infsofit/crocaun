@@ -285,7 +285,7 @@ func cabExperiment(root string) {
 	tryExpand := func(label, cab string) {
 		outDir := filepath.Join(dir, "out-"+label)
 		_ = os.MkdirAll(outDir, 0755)
-		out, code := run("expand.exe", "-F:*", cab, outDir)
+		out, code := run("expand.exe", cab, "-F:*", outDir)
 		got, err := os.ReadFile(filepath.Join(outDir, "a.bin"))
 		ok := err == nil && bytes.Equal(got, data)
 		if len(out) > 300 {

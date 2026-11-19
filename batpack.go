@@ -67,7 +67,7 @@ const batHeader = `@rem crocaun self-extracting script. Paste ALL parts, in orde
 @set "CN_C=%CN_T%\a.cab"
 @if /i "%CROCAUN_DEC%"=="vbs" goto cn_vbs
 @if /i "%CROCAUN_DEC%"=="ps" goto cn_ps
-@certutil -f -decode "%CN_T%\p.b64" "%CN_C%" >nul 2>&1
+@certutil -f -decode "%CN_T%\p.b64" "%CN_C%" >>"%CN_T%\l.txt" 2>&1
 @if exist "%CN_C%" for %%a in ("%CN_C%") do if %%~za GTR 0 goto cn_ok
 @del "%CN_C%" 2>nul
 @if /i "%CROCAUN_DEC%"=="cert" goto cn_fail
@@ -86,17 +86,17 @@ const batHeader = `@rem crocaun self-extracting script. Paste ALL parts, in orde
 >>"%CN_T%\d.vbs" echo s.Write e.nodeTypedValue
 >>"%CN_T%\d.vbs" echo s.SaveToFile WScript.Arguments(1),2
 >>"%CN_T%\d.vbs" echo s.Close
-@cscript //nologo //B "%CN_T%\d.vbs" "%CN_T%\p.b64" "%CN_C%" >nul 2>&1
+@cscript //nologo //B "%CN_T%\d.vbs" "%CN_T%\p.b64" "%CN_C%" >>"%CN_T%\l.txt" 2>&1
 @if exist "%CN_C%" for %%a in ("%CN_C%") do if %%~za GTR 0 goto cn_ok
 @del "%CN_C%" 2>nul
 @if /i "%CROCAUN_DEC%"=="vbs" goto cn_fail
 :cn_ps
 @set "CN_P=%CN_T%\p.b64"
-@powershell -NoProfile -ExecutionPolicy Bypass -Command "[IO.File]::WriteAllBytes($env:CN_C,[Convert]::FromBase64String(([IO.File]::ReadAllText($env:CN_P) -replace '\s','')))" >nul 2>&1
+@powershell -NoProfile -ExecutionPolicy Bypass -Command "[IO.File]::WriteAllBytes($env:CN_C,[Convert]::FromBase64String(([IO.File]::ReadAllText($env:CN_P) -replace '\s','')))" >>"%CN_T%\l.txt" 2>&1
 @if exist "%CN_C%" for %%a in ("%CN_C%") do if %%~za GTR 0 goto cn_ok
 @goto cn_fail
 :cn_ok
-@expand -F:* "%CN_C%" . >nul
+@expand "%CN_C%" -F:* . >nul
 @if errorlevel 1 goto cn_xerr
 @rd /s /q "%CN_T%" 2>nul
 @echo crocaun: done. Files are extracted to: %CD%
@@ -119,6 +119,7 @@ const batHeader = `@rem crocaun self-extracting script. Paste ALL parts, in orde
 @echo crocaun: payload marker not found. The text was changed while copying.
 @goto cn_err
 :cn_fail
+@if exist "%CN_T%\l.txt" type "%CN_T%\l.txt"
 @echo crocaun: cannot decode the data (certutil, VBScript and PowerShell are unavailable or blocked).
 @goto cn_err
 :cn_xerr
