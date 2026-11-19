@@ -224,3 +224,31 @@ func TestBatPayloadFilter(t *testing.T) {
 		}
 	}
 }
+
+// Несжимаемые блоки должны уходить одним stored-блоком с BFINAL=1 (иначе expand.exe выдаёт 0xca00a009).
+func TestCABIncompressibleStored(t *testing.T) {
+	cab, err := buildCAB([]cabFile{{"r.bin", rnd(100000), time.Now()}, {"s.txt", []byte("x"), time.Now()}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	le := binary.LittleEndian
+	coffData := int(le.Uint32(cab[36:]))
+	nData := int(le.Uint16(cab[40:]))
+	p := coffData
+	stored := 0
+	for i := 0; i < nData; i++ {
+		cb := int(le.Uint16(cab[p+4:]))
+		cu := int(le.Uint16(cab[p+6:]))
+		d := cab[p+8 : p+8+cb]
+		if cb == cu+7 && d[2] == 0x01 {
+			stored++
+		}
+		p += 8 + cb
+	}
+	if stored < 3 {
+		t.Errorf("ожидались stored-блоки для случайных данных, найдено %d", stored)
+	}
+	if _, _, err := readCABForTest(cab); err != nil {
+		t.Fatal(err)
+	}
+}

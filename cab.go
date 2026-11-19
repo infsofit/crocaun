@@ -83,6 +83,11 @@ func mszipBlock(raw []byte) ([]byte, error) {
 	if err := w.Close(); err != nil {
 		return nil, err
 	}
+	// Несжимаемые данные: compress/flate кладёт их как stored-блок + завершающий пустой блок, и такой поток expand.exe
+	// отвергает (0xca00a009, проверено на реальной Windows). Если сжатие ничего не даёт, пишем один stored-блок с BFINAL=1.
+	if b.Len()-2 >= len(raw) {
+		return mszipStored(raw), nil
+	}
 	return b.Bytes(), nil
 }
 
