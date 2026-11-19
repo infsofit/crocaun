@@ -116,8 +116,6 @@ func batTest() int {
 		check("HARNESS", code == 0 && strings.Contains(out, "harness-ok"), "("+dur.Round(10*time.Millisecond).String()+") "+dir[len(dir)-5:]+" "+short(out))
 	}
 
-	cabExperiment(root)
-
 	// исходное дерево
 	src := filepath.Join(root, "src")
 	_ = os.MkdirAll(filepath.Join(src, "дир", "вложенная"), 0755)
@@ -230,76 +228,4 @@ func batTest() int {
 	}
 	testLogf("BATTEST PASSED")
 	return 0
-}
-
-// cabExperiment (временная диагностика): какие свойства набора файлов ломают expand.exe (0xca00a009).
-func cabExperiment(root string) {
-	dir := filepath.Join(root, "cabx")
-	_ = os.MkdirAll(dir, 0755)
-	now := time.Now()
-	text := func(n int) []byte {
-		var b []byte
-		for len(b) < n {
-			b = append(b, []byte("The quick brown fox jumps over the lazy dog 0123456789\r\n")...)
-		}
-		return b[:n]
-	}
-	small := cabFile{"small.txt", []byte("small"), now}
-	type v struct {
-		name  string
-		files []cabFile
-		o     cabOpts
-	}
-	for i, c := range []v{
-		{"random700k+small", []cabFile{{"r.bin", randBytes(700 * 1024), now}, small}, cabOpts{}},
-		{"random700k+small STORED", []cabFile{{"r.bin", randBytes(700 * 1024), now}, small}, cabOpts{stored: true}},
-		{"random100k+small", []cabFile{{"r.bin", randBytes(100 * 1024), now}, small}, cabOpts{}},
-		{"random33k+small", []cabFile{{"r.bin", randBytes(33 * 1024), now}, small}, cabOpts{}},
-		{"text700k+small", []cabFile{{"t.txt", text(700 * 1024), now}, small}, cabOpts{}},
-		{"small+EMPTY+small", []cabFile{small, {"e.dat", nil, now}, {"s2.txt", []byte("two"), now}}, cabOpts{}},
-		{"empty last", []cabFile{small, {"s2.txt", []byte("two"), now}, {"e.dat", nil, now}}, cabOpts{}},
-		{"empty first", []cabFile{{"e.dat", nil, now}, small, {"s2.txt", []byte("two"), now}}, cabOpts{}},
-	} {
-		b, err := buildCABOpts(c.files, c.o)
-		if err != nil {
-			testLogf("BAT CABX %s: сборка: %v", c.name, err)
-			continue
-		}
-		cab := filepath.Join(dir, "t"+strconv.Itoa(i)+".cab")
-		out := filepath.Join(dir, "o"+strconv.Itoa(i))
-		_ = os.WriteFile(cab, b, 0644)
-		_ = os.MkdirAll(out, 0755)
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		cmd := exec.CommandContext(ctx, "expand.exe", cab, "-F:*", out)
-		cmd.WaitDelay = 5 * time.Second
-		hideWindow(cmd)
-		var buf bytes.Buffer
-		cmd.Stdout, cmd.Stderr = &buf, &buf
-		err = cmd.Run()
-		cancel()
-		code := 0
-		if err != nil {
-			code = -1
-			if ee, ok := err.(*exec.ExitError); ok {
-				code = ee.ExitCode()
-			}
-		}
-		okAll := true
-		for _, f := range c.files {
-			got, rerr := os.ReadFile(filepath.Join(out, f.Name))
-			if rerr != nil || !bytes.Equal(got, f.Data) {
-				okAll = false
-			}
-		}
-		o := buf.String()
-		if j := strings.Index(o, "Error Code"); j >= 0 {
-			o = o[j:]
-		} else {
-			o = ""
-		}
-		if len(o) > 80 {
-			o = o[:80]
-		}
-		testLogf("BAT CABX %-26s cab=%7d code=%d совпало=%v %s", c.name, len(b), code, okAll, strings.TrimSpace(strings.ReplaceAll(o, "\r\n", " ")))
-	}
 }
