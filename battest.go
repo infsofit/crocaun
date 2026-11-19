@@ -291,7 +291,17 @@ func cabExperiment(root string) {
 		if len(out) > 300 {
 			out = out[:300]
 		}
-		testLogf("BAT CABX %s: expand code=%d совпало=%v out=%q", label, code, ok, out)
+		var have []string
+		_ = filepath.WalkDir(outDir, func(p string, d fs.DirEntry, err error) error {
+			if err == nil && !d.IsDir() {
+				fi, _ := d.Info()
+				r, _ := filepath.Rel(outDir, p)
+				have = append(have, fmt.Sprintf("%s(%d)", r, fi.Size()))
+			}
+			return nil
+		})
+		testLogf("BAT CABX %s: expand code=%d совпало=%v в папке=%v ожидалось a.bin(%d)", label, code, ok, have, len(data))
+		_ = out
 	}
 
 	out, code := run("makecab.exe", "/D", "CompressionType=MSZIP", "a.bin", "ref.cab")

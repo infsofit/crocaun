@@ -200,3 +200,27 @@ func TestBatScript(t *testing.T) {
 		t.Error("ожидалась ошибка для PartSize=100")
 	}
 }
+
+// Все строки шапки обязаны начинаться НЕ с символа base64: скрипт выбирает данные через findstr /b /r "[A-Za-z0-9+/=]".
+func TestBatPayloadFilter(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "x.exe")
+	if err := os.WriteFile(exe, rnd(5000), 0644); err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range []BatOptions{{Text: "hi"}, {Text: "hi", EmbedExe: true, ExePath: exe}, {EmbedExe: true, ExePath: exe, PartSize: 700}} {
+		res, err := buildBat(o)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n := 0
+		for _, l := range strings.Split(strings.TrimSuffix(res.Script, "\r\n"), "\r\n") {
+			if l != "" && strings.ContainsRune("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=", rune(l[0])) {
+				n++
+			}
+		}
+		if n != res.PayloadLines {
+			t.Errorf("%+v: фильтр выберет %d строк, а данных %d", o.EmbedExe, n, res.PayloadLines)
+		}
+	}
+}

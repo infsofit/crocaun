@@ -288,9 +288,9 @@ func buildBat(o BatOptions) (*BatResult, error) {
 		payload = append(payload, b64[i:j]+"\r\n")
 	}
 
-	exeNote := "rem"
+	exeNote := "@rem"
 	if o.EmbedExe {
-		exeNote = "echo " + batExeName + " is in that folder: run it to send or receive files."
+		exeNote = "@echo " + batExeName + " is in that folder: run it to send or receive files."
 	}
 	header := strings.NewReplacer(
 		"@LINES@", fmt.Sprint(len(payload)),
