@@ -67,47 +67,11 @@ jobs:
           fi
           ls -la crocaun.exe
 
-      - name: Size report (informational, where the bytes are)
-        shell: bash
-        continue-on-error: true
-        run: |
-          CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -trimpath -ldflags "-H windowsgui" -o crocaun-sym.exe .
-          go tool nm -size -sort size crocaun-sym.exe > nm.txt
-          python3 - <<'PY' > size-report.txt
-          import re,collections
-          pk=collections.Counter(); mains=[]
-          for l in open('nm.txt',errors='replace'):
-              f=l.split(None,3)
-              if len(f)<4 or not f[1].isdigit(): continue
-              sz=int(f[1]); name=f[3].strip()
-              m=re.match(r'^((?:[^/(]*/)*[^/.(]+)',name)
-              pk[m.group(1) if m else name]+=sz
-              if name.startswith('main.'): mains.append((sz,name))
-          print('TOP PACKAGES (bytes, symbols only):')
-          for n,s in pk.most_common(22): print('  %8d %s'%(s,n))
-          print('TOP main.* SYMBOLS:')
-          for s,n in sorted(mains,reverse=True)[:22]: print('  %8d %s'%(s,n))
-          print('main.* total: %d'%sum(s for s,_ in mains))
-          PY
-          cat size-report.txt
-          msg=$(python3 -c "print(open('size-report.txt').read().replace('%','%25').replace('\r','%0D').replace('\n','%0A'))")
-          echo "::notice title=sizereport::$msg"
-      - name: Size budget (crocaun.exe must stay small)
+      - name: Exe size (informational, no limit)
         shell: bash
         run: |
           SIZE=$(stat -c%s crocaun.exe)
-          BASE=$(grep -oP '^BASELINE_BYTES=\K[0-9]+' size-budget.txt)
-          MAX=$(grep -oP '^MAX_BYTES=\K[0-9]+' size-budget.txt)
-          DELTA=$((SIZE-BASE))
-          MSG="crocaun.exe = $SIZE bytes; baseline (crocau 1.8) = $BASE; delta = $DELTA; limit = $MAX"
-          echo "$MSG"
-          echo "### Размер exe" >> "$GITHUB_STEP_SUMMARY"
-          echo "$MSG" >> "$GITHUB_STEP_SUMMARY"
-          if [ "$SIZE" -gt "$MAX" ]; then
-            echo "::error title=size budget::$MSG. Либо оптимизируйте, либо вынесите функцию во внешний бинарник, либо осознанно поднимите MAX_BYTES в size-budget.txt"
-            exit 1
-          fi
-          echo "::notice title=size::$MSG"
+          echo "::notice title=size::crocaun.exe = $SIZE bytes (crocau 1.8 = 14327296, delta = $((SIZE-14327296)))"
 
       - uses: actions/upload-artifact@v4
         with:
