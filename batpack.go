@@ -21,6 +21,8 @@ import (
 const (
 	batMessageName = "crocaun-message.txt"
 	batExeName     = "crocaun.exe"
+	batInfoName    = "crocaun-info.txt"
+	batInfoText    = "Created by crocaun (https://github.com/infsofit/crocaun)\n"
 	batLineLen     = 76 // длина строки base64, как в MIME
 	batMaxTotal    = 256 << 20
 	batMinPart     = 600
@@ -96,7 +98,7 @@ const batHeader = `@rem crocaun self-extracting script. Paste ALL parts, in orde
 @if exist "%CN_C%" for %%a in ("%CN_C%") do if %%~za GTR 0 goto cn_ok
 @goto cn_fail
 :cn_ok
-@expand "%CN_C%" -F:* . >nul
+@expand "%CN_C%" -F:* . >"%CN_T%\x.txt" 2>&1
 @if errorlevel 1 goto cn_xerr
 @rd /s /q "%CN_T%" 2>nul
 @echo crocaun: done. Files are extracted to: %CD%
@@ -122,7 +124,9 @@ const batHeader = `@rem crocaun self-extracting script. Paste ALL parts, in orde
 @if exist "%CN_T%\l.txt" type "%CN_T%\l.txt"
 @echo crocaun: cannot decode the data (certutil, VBScript and PowerShell are unavailable or blocked).
 @goto cn_err
+@rem expand.exe error output is shown below
 :cn_xerr
+@if exist "%CN_T%\x.txt" type "%CN_T%\x.txt"
 @echo crocaun: expand.exe failed. The data is damaged: paste all parts again without changes.
 :cn_err
 @rd /s /q "%CN_T%" 2>nul
@@ -272,6 +276,11 @@ func buildBat(o BatOptions) (*BatResult, error) {
 	}
 	if len(files) == 0 {
 		return nil, errors.New("нечего упаковывать: добавьте текст, файлы или включите программу")
+	}
+	// expand.exe распаковывает CAB из ОДНОГО файла как «одиночный сжатый файл» и называет результат по имени .cab,
+	// поэтому в архиве всегда минимум два файла: добавляем крошечный служебный.
+	if len(files) == 1 {
+		add(batInfoName, []byte(toCRLF(batInfoText)), time.Now())
 	}
 
 	cab, err := buildCAB(files)

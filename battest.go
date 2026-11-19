@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/binary"
-	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -117,8 +115,6 @@ func batTest() int {
 		dir, out, code, dur := runBat("@echo off\r\necho harness-ok\r\nexit /b 0\r\n", "")
 		check("HARNESS", code == 0 && strings.Contains(out, "harness-ok"), "("+dur.Round(10*time.Millisecond).String()+") "+dir[len(dir)-5:]+" "+short(out))
 	}
-
-	cabExperiment(root)
 
 	// исходное дерево
 	src := filepath.Join(root, "src")
@@ -232,112 +228,4 @@ func batTest() int {
 	}
 	testLogf("BATTEST PASSED")
 	return 0
-}
-
-// describeCAB - шестнадцатеричные дампы основных структур CAB (для сравнения эталона и нашей записи).
-func describeCAB(b []byte) string {
-	if len(b) < 44 {
-		return "слишком короткий"
-	}
-	le := binary.LittleEndian
-	coffFiles, coffData := int(le.Uint32(b[16:])), int(le.Uint32(b[36:]))
-	h := func(x []byte, n int) string {
-		if len(x) > n {
-			x = x[:n]
-		}
-		return fmt.Sprintf("%x", x)
-	}
-	return fmt.Sprintf("size=%d hdr=%s folder=%s cffile=%s cfdata=%s", len(b), h(b, 36), h(b[36:], 8),
-		h(b[coffFiles:], coffData-coffFiles), h(b[coffData:], 16))
-}
-
-// cabExperiment (только справка в логе): как настоящий expand.exe ведёт себя с нашим CAB - вложенные папки, пустые файлы,
-// вид пути назначения (с обратной косой чертой, "." и т.п.).
-func cabExperiment(root string) {
-	dir := filepath.Join(root, "cabx")
-	_ = os.MkdirAll(dir, 0755)
-	run := func(wd, name string, args ...string) (string, int) {
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
-		cmd := exec.CommandContext(ctx, name, args...)
-		cmd.Dir = wd
-		cmd.WaitDelay = 5 * time.Second
-		hideWindow(cmd)
-		var buf bytes.Buffer
-		cmd.Stdout, cmd.Stderr = &buf, &buf
-		err := cmd.Run()
-		code := 0
-		if err != nil {
-			code = -1
-			if ee, ok := err.(*exec.ExitError); ok {
-				code = ee.ExitCode()
-			}
-		}
-		o := buf.String()
-		if i := strings.Index(o, "Expanding Files"); i >= 0 {
-			o = o[i:]
-		}
-		o = strings.TrimSpace(strings.ReplaceAll(o, "\r\n", " | "))
-		if len(o) > 260 {
-			o = o[:260]
-		}
-		return o, code
-	}
-	list := func(d string) []string {
-		var have []string
-		_ = filepath.WalkDir(d, func(p string, e fs.DirEntry, err error) error {
-			if err == nil && !e.IsDir() {
-				fi, _ := e.Info()
-				r, _ := filepath.Rel(d, p)
-				have = append(have, fmt.Sprintf("%s(%d)", r, fi.Size()))
-			}
-			return nil
-		})
-		return have
-	}
-	mk := func(files []cabFile) string {
-		b, err := buildCAB(files)
-		if err != nil {
-			testLogf("BAT CABX build: %v", err)
-			return ""
-		}
-		p := filepath.Join(dir, "t.cab")
-		_ = os.WriteFile(p, b, 0644)
-		return p
-	}
-	now := time.Now()
-	nested := []cabFile{
-		{"top.txt", []byte("top"), now},
-		{`d1\n.txt`, []byte("nested"), now},
-		{`d1\d2\deep.bin`, randBytes(5000), now},
-	}
-	withEmpty := append(append([]cabFile{}, nested...), cabFile{"e.dat", nil, now})
-	single := []cabFile{{"only.txt", []byte("single file"), now}}
-
-	type tc struct {
-		name  string
-		files []cabFile
-		mode  string // dest: plain, slash, dot, pre (папки созданы заранее, dest со слэшем)
-	}
-	for _, c := range []tc{
-		{"nested+plain", nested, "plain"}, {"nested+slash", nested, "slash"}, {"nested+dot", nested, "dot"},
-		{"nested+pre", nested, "pre"}, {"empty+slash", withEmpty, "slash"}, {"single+plain", single, "plain"},
-		{"single+slash", single, "slash"}, {"single+dot", single, "dot"},
-	} {
-		cab := mk(c.files)
-		out := filepath.Join(dir, "o-"+strings.ReplaceAll(c.name, "+", "-"))
-		_ = os.MkdirAll(out, 0755)
-		wd, dest := dir, out
-		switch c.mode {
-		case "slash":
-			dest = out + `\`
-		case "dot":
-			wd, dest = out, "."
-		case "pre":
-			_ = os.MkdirAll(filepath.Join(out, "d1", "d2"), 0755)
-			dest = out + `\`
-		}
-		o, code := run(wd, "expand.exe", cab, "-F:*", dest)
-		testLogf("BAT CABX %-13s code=%d files=%v | %s", c.name, code, list(out), o)
-	}
 }
