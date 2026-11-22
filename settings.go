@@ -203,7 +203,7 @@ func loadSettingsFrom(path string) Settings {
 		case "Win":
 			s.Win = v
 		case "Lang":
-			s.Lang = normLang(v)
+			s.Lang = v
 		case "ChatDir":
 			s.ChatDir = v
 		case "ChatDirLast":
@@ -334,7 +334,7 @@ func saveSettingsTo(path string, s Settings) error {
 	if s.Win != "" {
 		text += "Win=" + s.Win + "\r\n"
 	}
-	text += "Lang=" + normLang(s.Lang) + "\r\nChatDir=" + s.ChatDir + "\r\nChatDirLast=" + s.ChatDirLast + "\r\n"
+	text += "Lang=" + s.Lang + "\r\nChatDir=" + s.ChatDir + "\r\nChatDirLast=" + s.ChatDirLast + "\r\n"
 	for _, p := range s.Proxies {
 		text += "ProxyEntry=" + encodeProxy(p, seal) + "\r\n"
 	}
