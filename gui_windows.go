@@ -108,6 +108,11 @@ func applyLangAndChatDir(st Settings, test bool) {
 }
 
 func guiMain(test bool) int {
+	// порты проверяем первыми, пока наши собственные чат и обмен ещё не запущены (иначе программа ругалась бы на саму себя)
+	var portsAtStart []string
+	if !test {
+		portsAtStart = checkPorts()
+	}
 	st := loadSettings()
 	applyLangAndChatDir(st, test)
 	if st.Locked {
@@ -2045,9 +2050,9 @@ func guiMain(test bool) int {
 	}
 
 	if !test {
-		// предупреждение о занятых портах (например, запущена другая копия с тем же набором портов)
+		// предупреждение о занятых портах (проверка сделана в начале запуска, до старта нашего чата и обмена)
 		go func() {
-			if busy := checkPorts(); len(busy) > 0 {
+			if busy := portsAtStart; len(busy) > 0 {
 				time.Sleep(700 * time.Millisecond)
 				mw.Synchronize(func() {
 					walk.MsgBox(mw, "crocaun", T("Заняты порты, нужные программе:")+"\r\n"+strings.Join(busy, "\r\n")+"\r\n\r\n"+
