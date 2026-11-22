@@ -20,7 +20,7 @@ import (
 )
 
 // appVersion - версия программы (показывается внизу окна).
-const appVersion = "1.9"
+const appVersion = "1.10"
 
 func crlf(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\n", "\r\n")
@@ -110,8 +110,16 @@ func shortErr(err error) string {
 	return s
 }
 
+// applyLangAndChatDir применяет язык и имя папки чата из настроек (с переименованием/слиянием старых папок).
+func applyLangAndChatDir(st Settings) {
+	setLang(st.Lang)
+	chatDirName = sanitizeChatDir(st.ChatDir)
+	migrateChatDir(exeDir(), chatDirName, chatDirLegacy, st.ChatDirLast)
+}
+
 func guiMain(test bool) int {
 	st := loadSettings()
+	applyLangAndChatDir(st)
 	if st.Locked {
 		if st.MasterSalt == "" || test {
 			settingsReadOnly = true
@@ -127,6 +135,7 @@ func guiMain(test bool) int {
 					continue
 				}
 				st = loadSettings()
+				applyLangAndChatDir(st)
 				break
 			}
 		}
@@ -143,6 +152,8 @@ func guiMain(test bool) int {
 		outLE           *walk.LineEdit
 		recvText        *walk.TextEdit
 		relayLE         *walk.LineEdit
+		langCB          *walk.ComboBox
+		chatDirLE       *walk.LineEdit
 		relayPassLE     *walk.LineEdit
 		extraLE         *walk.LineEdit
 		logTE           *walk.TextEdit
@@ -348,10 +359,26 @@ func guiMain(test bool) int {
 		return modeAuto
 	}
 
+	langVals := []string{"auto", "ru", "en"}
+	langPref := func() string {
+		if langCB != nil {
+			if i := langCB.CurrentIndex(); i >= 0 && i < len(langVals) {
+				return langVals[i]
+			}
+		}
+		return normLang(st.Lang)
+	}
+	langIdx := 0
+	for i, v := range langVals {
+		if v == normLang(st.Lang) {
+			langIdx = i
+		}
+	}
 	winRec := st.Win
 	collect := func() Settings {
 		return Settings{
-			Win:   winRec,
+			Win:  winRec,
+			Lang: langPref(), ChatDir: chatDirLE.Text(), ChatDirLast: chatDirName,
 			Relay: relayLE.Text(), RelayPass: relayPassLE.Text(), Extra: extraLE.Text(), OutDir: outLE.Text(),
 			Compress:   compressCB.Checked(),
 			OutRel:     outRelCB.Checked(),
@@ -1532,6 +1559,19 @@ func guiMain(test bool) int {
 						Title:  "Настройки",
 						Layout: VBox{},
 						Children: []Widget{
+							Composite{Layout: HBox{MarginsZero: true}, Children: []Widget{
+								Label{Text: "Язык / Language:"},
+								ComboBox{AssignTo: &langCB, Model: []string{"Auto / Авто", "Русский", "English"}, CurrentIndex: langIdx, MinSize: Size{Width: 140},
+									ToolTipText: "Auto: русский, если Windows на русском, иначе английский. Применяется после перезапуска / Applied after restart"},
+								Label{Text: "Папка чата / Chat folder:"},
+								LineEdit{AssignTo: &chatDirLE, Text: func() string {
+									if st.ChatDir == "" {
+										return chatDirName
+									}
+									return st.ChatDir
+								}(), MinSize: Size{Width: 130}, ToolTipText: T("Имя папки чата внутри рабочей папки. Существующая папка переименуется при следующем запуске; если в ней и в новой одинаковые файлы, остаются более новые")},
+								HSpacer{},
+							}},
 							Label{Text: "Адрес relay (host:порт); пусто = публичные relay croc:"},
 							LineEdit{AssignTo: &relayLE, Text: st.Relay},
 							Label{Text: "Пароль relay (пусто = по умолчанию):"},
@@ -2014,6 +2054,18 @@ func guiMain(test bool) int {
 		}()
 	}
 
+	if !test {
+		// предупреждение о занятых портах (например, запущена другая копия с тем же набором портов)
+		go func() {
+			if busy := checkPorts(); len(busy) > 0 {
+				time.Sleep(700 * time.Millisecond)
+				mw.Synchronize(func() {
+					walk.MsgBox(mw, "crocaun", T("Заняты порты, нужные программе:")+"\r\n"+strings.Join(busy, "\r\n")+"\r\n\r\n"+
+						T("Скорее всего, запущена ещё одна копия (другой профиль). Функции, использующие эти порты (локальный чат, обмен по сети), могут работать неправильно. Автоматическое решение конфликта портов запланировано (см. TODO.md)."), walk.MsgBoxIconWarning)
+				})
+			}
+		}()
+	}
 	if test {
 		mw.Run()
 	} else {

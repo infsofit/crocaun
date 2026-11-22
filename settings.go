@@ -54,10 +54,16 @@ type Settings struct {
 	// Locked - файл защищён мастер-паролем, а он не введён (не сохраняется в файл).
 	Locked bool
 	// Win - положение окна: "отпечаток компьютера|x|y|w|h|развёрнуто"; на другом компьютере запись сбрасывается.
-	Win       string
-	ProxyMode string
-	ProxySel  int
-	Proxies   []ProxyCfg
+	Win string
+	// Lang: auto | ru | en (язык интерфейса, применяется после перезапуска).
+	Lang string
+	// ChatDir: имя папки чата внутри рабочей папки (пусто = crocaun-chat).
+	ChatDir string
+	// ChatDirLast: имя папки, которое использовалось при последнем сохранении (для переименования при смене ChatDir).
+	ChatDirLast string
+	ProxyMode   string
+	ProxySel    int
+	Proxies     []ProxyCfg
 }
 
 // exeDirOverride подменяет папку программы (тесты).
@@ -196,6 +202,12 @@ func loadSettingsFrom(path string) Settings {
 			s.ExchTo = v
 		case "Win":
 			s.Win = v
+		case "Lang":
+			s.Lang = normLang(v)
+		case "ChatDir":
+			s.ChatDir = v
+		case "ChatDirLast":
+			s.ChatDirLast = v
 		case "ExchWatch":
 			s.ExchWatch = v == "1"
 		case "ExchDir":
@@ -322,6 +334,7 @@ func saveSettingsTo(path string, s Settings) error {
 	if s.Win != "" {
 		text += "Win=" + s.Win + "\r\n"
 	}
+	text += "Lang=" + normLang(s.Lang) + "\r\nChatDir=" + s.ChatDir + "\r\nChatDirLast=" + s.ChatDirLast + "\r\n"
 	for _, p := range s.Proxies {
 		text += "ProxyEntry=" + encodeProxy(p, seal) + "\r\n"
 	}

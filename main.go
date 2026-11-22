@@ -6,6 +6,7 @@
 //	crocaun.exe --selftest    - самотест передачи (для CI)
 //	crocaun.exe --guitest     - тест окна (для CI)
 //	crocaun.exe --battest     - тест самораспаковывающихся BAT-скриптов (для CI, Windows)
+//	crocaun.exe -w папка      - все рабочие файлы (ini, чат, Share) в указанной папке (--workdir, можно %VAR%)
 //	crocaun.exe --send путь.. - окно с добавленными файлами (меню Проводника «Отправить через Crocau»)
 package main
 
@@ -17,6 +18,10 @@ import (
 )
 
 func main() {
+	if err := applyWorkdir(); err != nil {
+		log.Println(T("Параметр -w/--workdir:"), err)
+		os.Exit(2)
+	}
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "--croc":

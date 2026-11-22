@@ -1,0 +1,22 @@
+Changelog format: one block per version, newest first. Sections: Added / Changed / Fixed.
+Header: "Chanlog HH:MM:SS  DD.MM.YYYY Weekday:"
+
+Chanlog 05:22:54  22.11.2026 Su:
+Version 1.10
+  Added:
+  - Interface in English and Russian. Language is chosen automatically (Russian if Windows UI language is Russian, otherwise English); manual switch in Settings, saved in crocaun.ini (Lang=auto|ru|en), applied after restart.
+  - Launch parameter -w / --workdir <folder>: all working files and folders (crocaun.ini, chat folder, Share, received, logs) live in that folder; several profiles from one exe. %VAR% is expanded. Documented in README.
+  - Warning window at startup if the ports the program needs are busy (UDP 29008, TCP 29009-29013, chat TCP 29014 / UDP 29015). Real solution for port conflicts is in TODO.md.
+  - Chat: participants pane to the right of every chat; "Check status" button (no background polling) and "Remove old" button.
+  - Chat folder name can be changed in Settings; an existing folder (including legacy crocau-chat) is renamed automatically; if both old and new folders exist, the newer file (by modification time) wins on name clashes.
+  - changelog.txt, README-EN.md, TODO.md.
+  Changed:
+  - Chat folder is now named crocaun-chat by default and is created only when the chat is enabled.
+  - Version 1.10.
+
+Chanlog 00:00:00  19.11.2026 Th:
+Version 1.9
+  Added:
+  - Self-extracting BAT script (CAB MSZIP + base64; decoders certutil / VBScript / PowerShell), optional embedded crocaun.exe, splitting into parts for messengers, destination "BAT script" in the GUI, --battest in CI.
+  Changed:
+  - Fork of uaofiau/crocau renamed to crocaun; exe size limit removed (size is considered last).

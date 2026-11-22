@@ -29,17 +29,18 @@ type chatCfg struct {
 
 var chatCfgMu sync.Mutex
 
-func chatDataDir() string { return filepath.Join(exeDir(), "crocau-chat") }
+func chatDataDir() string { return filepath.Join(exeDir(), chatDirName) }
 
 func chatCfgPath() string { return filepath.Join(chatDataDir(), "chat.json") }
 
 func loadChatCfg() chatCfg {
-	c, fresh := loadChatCfgRaw()
-	if fresh {
-		_ = saveChatCfg(c) // постоянный идентификатор сохраняем сразу, чтобы обе вкладки чата видели один и тот же
-	}
+	// Папка не создаётся, пока чат не включён: новый идентификатор запоминается в памяти и попадёт на диск
+	// при первом сохранении настроек чата (saveChatCfg).
+	c, _ := loadChatCfgRaw()
 	return c
 }
+
+var chatUIDCache string
 
 func loadChatCfgRaw() (chatCfg, bool) {
 	chatCfgMu.Lock()
@@ -53,7 +54,10 @@ func loadChatCfgRaw() (chatCfg, bool) {
 	}
 	fresh := false
 	if c.UID == "" {
-		c.UID = randHex(8)
+		if chatUIDCache == "" {
+			chatUIDCache = randHex(8)
+		}
+		c.UID = chatUIDCache
 		fresh = true
 	}
 	return c, fresh

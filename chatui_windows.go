@@ -36,6 +36,10 @@ type chatPage struct {
 	filesCB *walk.ComboBox
 	files   []ChatMsg
 	info    *walk.Label
+	roster  *walk.ListBox
+	rosterL *walk.Label
+	online  map[string]bool // результат последней проверки статуса (nil - не проверялось)
+	checked time.Time
 	unread  bool
 	count   int
 	view    chatView
@@ -475,11 +479,41 @@ func (p *chatPanel) openRoom(label, pw string, common, selectIt bool) {
 	_ = page.SetTitle(label)
 	page.SetLayout(walk.NewVBoxLayout())
 	pg.page = page
-	pg.te, _ = walk.NewTextEditWithStyle(page, win.WS_VSCROLL)
-	pg.te.SetReadOnly(true)
+	// справа от переписки - панель участников со статусом
+	conv, _ := walk.NewComposite(page)
+	conv.SetLayout(walk.NewHBoxLayout())
+	if bl, ok := conv.Layout().(*walk.BoxLayout); ok {
+		_ = bl.SetMargins(walk.Margins{})
+	}
 	if bl, ok := page.Layout().(*walk.BoxLayout); ok {
+		_ = bl.SetStretchFactor(conv, 10)
+	}
+	pg.te, _ = walk.NewTextEditWithStyle(conv, win.WS_VSCROLL)
+	pg.te.SetReadOnly(true)
+	if bl, ok := conv.Layout().(*walk.BoxLayout); ok {
 		_ = bl.SetStretchFactor(pg.te, 10)
 	}
+	side, _ := walk.NewComposite(conv)
+	side.SetLayout(walk.NewVBoxLayout())
+	if bl, ok := side.Layout().(*walk.BoxLayout); ok {
+		_ = bl.SetMargins(walk.Margins{})
+	}
+	_ = side.SetMinMaxSize(walk.Size{Width: 190}, walk.Size{Width: 230})
+	pg.rosterL, _ = walk.NewLabel(side)
+	_ = pg.rosterL.SetText(T("Участники"))
+	pg.roster, _ = walk.NewListBox(side)
+	chk, _ := walk.NewPushButton(side)
+	_ = chk.SetText(T("Проверить статус"))
+	_ = chk.SetToolTipText(T("Опроса в фоне нет: статусы обновляются только по этой кнопке"))
+	rmOld, _ := walk.NewPushButton(side)
+	_ = rmOld.SetText(T("Убрать старых"))
+	_ = rmOld.SetToolTipText(T("Убрать из списка всех, кто не на связи (вернутся, когда напишут снова)"))
+	chk.Clicked().Attach(func() { p.checkStatus(pg, chk) })
+	rmOld.Clicked().Attach(func() {
+		n := pg.room.HideOffline(p.node.UserID(), func(uid string) bool { return pg.online[uid] })
+		p.updRoster(pg)
+		_ = pg.info.SetText(Tf("Убрано из списка: %d", n))
+	})
 	row, _ := walk.NewComposite(page)
 	row.SetLayout(walk.NewHBoxLayout())
 	if bl, ok := row.Layout().(*walk.BoxLayout); ok {
@@ -621,6 +655,57 @@ func (p *chatPanel) openRoom(label, pw string, common, selectIt bool) {
 	p.updStatus()
 }
 
+// updRoster перерисовывает список участников (по локальным данным, без обращения к сети).
+func (p *chatPanel) updRoster(pg *chatPage) {
+	if pg.roster == nil || p.node == nil {
+		return
+	}
+	var items []string
+	for _, pt := range pg.room.Roster(p.node.UserID()) {
+		st := ""
+		switch {
+		case pt.Self:
+			st = T("вы")
+		case pg.online != nil && pg.online[pt.UID]:
+			st = "● " + T("на связи")
+		default:
+			st = "○ " + time.UnixMilli(pt.LastTS).Format("02.01 15:04")
+			if pg.online == nil {
+				st = "? " + time.UnixMilli(pt.LastTS).Format("02.01 15:04")
+			}
+		}
+		items = append(items, pt.Name+"  ["+st+"]")
+	}
+	_ = pg.roster.SetModel(items)
+	title := T("Участники")
+	if !pg.checked.IsZero() {
+		title += " (" + T("проверено") + " " + pg.checked.Format("15:04:05") + ")"
+	}
+	_ = pg.rosterL.SetText(title)
+}
+
+// checkStatus - единственное место, где статусы обновляются: по кнопке, в фоне, затем перерисовка.
+func (p *chatPanel) checkStatus(pg *chatPage, btn *walk.PushButton) {
+	p.ensureStarted()
+	if p.node == nil {
+		return
+	}
+	_ = btn.SetEnabled(false)
+	_ = pg.rosterL.SetText(T("Проверка..."))
+	go func() {
+		for i := 0; i < 50 && !p.node.Ready(); i++ {
+			time.Sleep(200 * time.Millisecond)
+		}
+		p.node.CheckStatus(pg.room)
+		on := p.node.OnlineUIDs(pg.room)
+		p.mw.Synchronize(func() {
+			pg.online, pg.checked = on, time.Now()
+			p.updRoster(pg)
+			_ = btn.SetEnabled(true)
+		})
+	}()
+}
+
 func (p *chatPanel) download(pg *chatPage) {
 	i := pg.filesCB.CurrentIndex()
 	if i < 0 || i >= len(pg.files) {
@@ -749,6 +834,7 @@ func (p *chatPanel) render(pg *chatPage, toEnd bool) {
 		}
 	}
 	_ = pg.te.SetText(pg.view.Text)
+	p.updRoster(pg)
 	if toEnd {
 		n := u16len(pg.view.Text)
 		pg.te.SetTextSelection(n, n)

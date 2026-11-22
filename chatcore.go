@@ -399,6 +399,9 @@ type ChatBackend interface {
 	PeerCount() int
 	PeerInfo() []string
 	SetCallbacks(upd func(string), peers func())
+	// OnlineUIDs - кто сейчас «на связи» в комнате; CheckStatus - обновить сведения (блокирует на пару секунд).
+	OnlineUIDs(r *ChatRoom) map[string]bool
+	CheckStatus(r *ChatRoom)
 }
 
 var (
