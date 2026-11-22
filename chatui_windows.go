@@ -690,7 +690,7 @@ func (p *chatPanel) checkStatus(pg *chatPage, btn *walk.PushButton) {
 	if p.node == nil {
 		return
 	}
-	_ = btn.SetEnabled(false)
+	btn.SetEnabled(false)
 	_ = pg.rosterL.SetText(T("Проверка..."))
 	go func() {
 		for i := 0; i < 50 && !p.node.Ready(); i++ {
@@ -701,7 +701,7 @@ func (p *chatPanel) checkStatus(pg *chatPage, btn *walk.PushButton) {
 		p.mw.Synchronize(func() {
 			pg.online, pg.checked = on, time.Now()
 			p.updRoster(pg)
-			_ = btn.SetEnabled(true)
+			btn.SetEnabled(true)
 		})
 	}()
 }
