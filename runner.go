@@ -253,10 +253,10 @@ type attemptT struct {
 func (a attemptT) describe() string {
 	s := a.relay
 	if s == "" {
-		s = "relay из настроек"
+		s = T("relay из настроек")
 	}
 	if a.route.P != nil {
-		s += " через " + a.route.Name()
+		s += T(" через ") + a.route.Name()
 	}
 	return s
 }
@@ -265,7 +265,7 @@ func (j *Job) run(spec JobSpec) int {
 	if spec.Prep != nil {
 		if err := spec.Prep(j); err != nil {
 			if !j.isKilled() {
-				j.addNote("Ошибка подготовки: " + err.Error())
+				j.addNote(T("Ошибка подготовки: ") + err.Error())
 			}
 			return -1
 		}
@@ -278,7 +278,7 @@ func (j *Job) run(spec JobSpec) int {
 		code := spec.Do(j, routes)
 		if code == 0 && spec.Post != nil {
 			if err := spec.Post(j); err != nil {
-				j.addNote("Ошибка: " + err.Error())
+				j.addNote(T("Ошибка: ") + err.Error())
 				return 2
 			}
 		}
@@ -293,7 +293,7 @@ func (j *Job) run(spec JobSpec) int {
 		routes = []Route{{}}
 	}
 	if len(routes) > 1 && spec.ProbeRelay != "" && !j.isKilled() {
-		j.setStatus("Проверка соединения...")
+		j.setStatus(T("Проверка соединения..."))
 		routes = orderRoutes(routes, spec.ProbeRelay, 3*time.Second)
 		j.setStatus("")
 	}
@@ -313,7 +313,7 @@ func (j *Job) run(spec JobSpec) int {
 		// Сбой обмена ключами бывает, когда отправитель и приёмник встретились в момент перезапуска
 		// второй стороны (комната ещё занята прежним сеансом): короткая пауза и повтор.
 		for try := 0; try < 3 && code != 0 && !j.isKilled() && isHandshakeError(errText); try++ {
-			j.addNote("Не удалось установить защищённый канал, повторяю...")
+			j.addNote(T("Не удалось установить защищённый канал, повторяю..."))
 			time.Sleep(time.Duration(1500+mrand.Intn(1500)) * time.Millisecond)
 			code, errText = j.attempt(spec, a)
 		}
@@ -323,15 +323,15 @@ func (j *Job) run(spec JobSpec) int {
 		if j.isKilled() || i+1 >= len(atts) || !isConnectError(errText) {
 			break
 		}
-		reason := "нет соединения"
+		reason := T("нет соединения")
 		if strings.Contains(errText, "rate limited") {
-			reason = "лимит подключений"
+			reason = T("лимит подключений")
 		}
-		j.addNote(fmt.Sprintf("%s: %s. Пробую %s", a.describe(), reason, atts[i+1].describe()))
+		j.addNote(fmt.Sprintf(T("%s: %s. Пробую %s"), a.describe(), reason, atts[i+1].describe()))
 	}
 	if code == 0 && spec.Post != nil {
 		if err := spec.Post(j); err != nil {
-			j.addNote("Ошибка: " + err.Error())
+			j.addNote(T("Ошибка: ") + err.Error())
 			return 2
 		}
 	}
@@ -346,7 +346,7 @@ func (j *Job) attempt(spec JobSpec, a attemptT) (int, string) {
 		var err error
 		br, err = startBridge(a.route)
 		if err != nil {
-			j.addNote("Не удалось запустить локальный мост для прокси: " + err.Error())
+			j.addNote(T("Не удалось запустить локальный мост для прокси: ") + err.Error())
 			return -1, "could not connect: " + err.Error()
 		}
 		defer br.Close()
@@ -355,7 +355,7 @@ func (j *Job) attempt(spec JobSpec, a attemptT) (int, string) {
 	if a.relay != "" {
 		n := "Relay: " + a.relay
 		if a.route.P != nil {
-			n += " (через " + a.route.Name() + ")"
+			n += T(" (через ") + a.route.Name() + ")"
 		}
 		j.addNote(n)
 	}
@@ -364,7 +364,7 @@ func (j *Job) attempt(spec JobSpec, a attemptT) (int, string) {
 	}
 	cmd, err := j.spawn(spec.MkArgs(a.relay), proxyURL)
 	if err != nil {
-		j.addNote("Не удалось запустить croc: " + err.Error())
+		j.addNote(T("Не удалось запустить croc: ") + err.Error())
 		return -1, ""
 	}
 	code := exitCodeOf(cmd.Wait())
@@ -373,7 +373,7 @@ func (j *Job) attempt(spec JobSpec, a attemptT) (int, string) {
 	j.mu.Unlock()
 	if code != 0 && br != nil {
 		if e := br.LastError(); e != "" {
-			j.addNote("Прокси: " + e)
+			j.addNote(T("Прокси: ") + e)
 		}
 	}
 	return code, errText
@@ -496,7 +496,7 @@ func startSend(s Settings, pw, text string, items []string) (*Job, error) {
 		text = ""
 	}
 	if text == "" && len(items) == 0 {
-		return nil, errors.New("нечего отправлять")
+		return nil, errors.New(T("нечего отправлять"))
 	}
 	routes, err := routesFor(s)
 	if err != nil {
@@ -538,7 +538,7 @@ func startSend(s Settings, pw, text string, items []string) (*Job, error) {
 	}
 	if compress {
 		spec.Prep = func(j *Job) error {
-			j.setStatus("Архивирование...")
+			j.setStatus(T("Архивирование..."))
 			p, err := buildArchive(j, work, text, from, items)
 			if err != nil {
 				return err

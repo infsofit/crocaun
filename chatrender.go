@@ -84,7 +84,7 @@ func renderOne(m ChatMsg, expanded map[string]bool) (string, []chatSeg) {
 	}
 	b.add(time.Unix(m.TS/1000, 0).Format("02.01 15:04") + "  " + name + ": ")
 	if m.Kind == "file" && m.File != nil {
-		b.addSeg("[файл: "+m.File.Name+" ("+humanSize(m.File.Size)+")]", chatSeg{Kind: "file", MsgID: m.ID, File: m.File, From: m.Name, UID: m.UID})
+		b.addSeg(T("[файл: ")+m.File.Name+" ("+humanSize(m.File.Size)+")]", chatSeg{Kind: "file", MsgID: m.ID, File: m.File, From: m.Name, UID: m.UID})
 		b.add("\r\n")
 		return b.sb.String(), b.segs
 	}
@@ -120,10 +120,10 @@ func renderOne(m ChatMsg, expanded map[string]bool) (string, []chatSeg) {
 	if collapsible {
 		if expanded[m.ID] {
 			b.add(" ")
-			b.addSeg("[свернуть]", chatSeg{Kind: "collapse", MsgID: m.ID, Key: m.ID})
+			b.addSeg(T("[свернуть]"), chatSeg{Kind: "collapse", MsgID: m.ID, Key: m.ID})
 		} else {
 			b.add(" ")
-			b.addSeg("[… развернуть]", chatSeg{Kind: "expand", MsgID: m.ID, Key: m.ID})
+			b.addSeg(T("[… развернуть]"), chatSeg{Kind: "expand", MsgID: m.ID, Key: m.ID})
 		}
 	}
 	b.add("\r\n")

@@ -93,7 +93,7 @@ func chatDecryptFile(src, dst string, key []byte) error {
 	br := bufio.NewReaderSize(in, 256*1024)
 	magic := make([]byte, len(chatFileMagic))
 	if _, err := io.ReadFull(br, magic); err != nil || string(magic) != chatFileMagic {
-		return errors.New("файл повреждён или это не файл чата")
+		return errors.New(T("файл повреждён или это не файл чата"))
 	}
 	out, err := os.Create(dst)
 	if err != nil {
@@ -109,15 +109,15 @@ func chatDecryptFile(src, dst string, key []byte) error {
 	for {
 		var l [4]byte
 		if _, err := io.ReadFull(br, l[:]); err != nil {
-			return fail(errors.New("файл обрезан"))
+			return fail(errors.New(T("файл обрезан")))
 		}
 		n := binary.BigEndian.Uint32(l[:])
 		if n < 16 || n > chatFileChunk+16 {
-			return fail(errors.New("файл повреждён"))
+			return fail(errors.New(T("файл повреждён")))
 		}
 		ct := make([]byte, n)
 		if _, err := io.ReadFull(br, ct); err != nil {
-			return fail(errors.New("файл обрезан"))
+			return fail(errors.New(T("файл обрезан")))
 		}
 		_, perr := br.Peek(1)
 		final := byte(0)
@@ -126,7 +126,7 @@ func chatDecryptFile(src, dst string, key []byte) error {
 		}
 		pt, err := aead.Open(nil, chatFileNonce(idx), ct, []byte{final})
 		if err != nil {
-			return fail(errors.New("не удалось расшифровать файл (неверный ключ или файл изменён)"))
+			return fail(errors.New(T("не удалось расшифровать файл (неверный ключ или файл изменён)")))
 		}
 		_, _ = bw.Write(pt)
 		idx++

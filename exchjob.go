@@ -65,13 +65,13 @@ func startExchSend(s Settings, pw, text string, items []string, withExe bool) (*
 		text = ""
 	}
 	if text == "" && len(items) == 0 && !withExe {
-		return nil, errors.New("нечего отправлять")
+		return nil, errors.New(T("нечего отправлять"))
 	}
 	if pw != "" && utf8.RuneCountInString(pw) < 3 {
-		return nil, errors.New("пароль архива должен быть не короче 3 символов (или оставьте поле пустым - без пароля)")
+		return nil, errors.New(T("пароль архива должен быть не короче 3 символов (или оставьте поле пустым - без пароля)"))
 	}
 	if withExe && pw != "" && !isASCII(pw) {
-		return nil, errors.New("для архива с программой пароль только из латинских букв и цифр (такой архив открывает Проводник Windows)")
+		return nil, errors.New(T("для архива с программой пароль только из латинских букв и цифр (такой архив открывает Проводник Windows)"))
 	}
 	routes, err := routesFor(s)
 	if err != nil {
@@ -99,22 +99,22 @@ func startExchSend(s Settings, pw, text string, items []string, withExe bool) (*
 			// только программа: в zip (открывается Проводником без архиваторов) или как есть
 			if s.Compress {
 				zp := filepath.Join(work, "crocau-program.zip")
-				j.setStatus("Архивирование программы...")
+				j.setStatus(T("Архивирование программы..."))
 				if err := zipOne(exe, filepath.Base(exe), zp); err != nil {
 					return err
 				}
-				files = append(files, upItem{zp, "crocau.zip", "Программа Crocaun"})
+				files = append(files, upItem{zp, "crocau.zip", T("Программа Crocaun")})
 			} else {
-				files = append(files, upItem{exe, "crocaun.exe", "Программа Crocaun"})
+				files = append(files, upItem{exe, "crocaun.exe", T("Программа Crocaun")})
 			}
 		case text == "" && len(items) == 1 && !withExe && pw == "" && !s.Compress && isRegularFile(items[0]):
-			files = append(files, upItem{items[0], filepath.Base(items[0]), "Файл"})
+			files = append(files, upItem{items[0], filepath.Base(items[0]), T("Файл")})
 		default:
 			all := append([]string{}, items...)
 			if withExe {
 				all = append(all, exe) // программа лежит в том же архиве, что и файлы
 			}
-			j.setStatus("Архивирование...")
+			j.setStatus(T("Архивирование..."))
 			var p string
 			var err error
 			if onlyProgram {
@@ -127,7 +127,7 @@ func startExchSend(s Settings, pw, text string, items []string, withExe bool) (*
 				return err
 			}
 			if pw != "" {
-				j.setStatus("Шифрование архива...")
+				j.setStatus(T("Шифрование архива..."))
 				enc := p + ".enc"
 				if withExe {
 					// архив с программой должен открываться Проводником Windows: традиционное шифрование (слабее AES)
@@ -141,7 +141,7 @@ func startExchSend(s Settings, pw, text string, items []string, withExe bool) (*
 				_ = os.Remove(p)
 				p = enc
 			}
-			files = append(files, upItem{p, "crocau-" + randHex(4) + ".zip", "Файлы"})
+			files = append(files, upItem{p, "crocau-" + randHex(4) + ".zip", T("Файлы")})
 		}
 		j.setStatus("")
 		return nil
@@ -153,7 +153,7 @@ func startExchSend(s Settings, pw, text string, items []string, withExe bool) (*
 			if err != nil && it.name == "crocaun.exe" {
 				// многие обменники отклоняют .exe: пробуем в zip
 				zp := filepath.Join(work, "crocau-program.zip")
-				j.addNote("Обменники не приняли .exe, пробую в zip...")
+				j.addNote(T("Обменники не приняли .exe, пробую в zip..."))
 				if zerr := zipOne(it.path, "crocaun.exe", zp); zerr == nil {
 					link, info, err = uploadWithRoutes(j, routes, upItem{zp, "crocau.zip", it.label})
 				}
@@ -162,7 +162,7 @@ func startExchSend(s Settings, pw, text string, items []string, withExe bool) (*
 				if j.isKilled() {
 					return -1
 				}
-				j.addNote("Ошибка: " + err.Error())
+				j.addNote(T("Ошибка: ") + err.Error())
 				return 1
 			}
 			j.addNote(fmt.Sprintf("%s: %s  (%s)", it.label, link, info))
@@ -170,9 +170,9 @@ func startExchSend(s Settings, pw, text string, items []string, withExe bool) (*
 		}
 		if pw != "" {
 			if withExe {
-				j.addNote("Архив защищён паролем (открывается Проводником Windows без архиваторов). Сообщите пароль получателю отдельно.")
+				j.addNote(T("Архив защищён паролем (открывается Проводником Windows без архиваторов). Сообщите пароль получателю отдельно."))
 			} else {
-				j.addNote("Файлы в архиве зашифрованы паролем AES-256. Сообщите его получателю отдельно. Открыть архив можно в 7-Zip или WinRAR (Проводник Windows с такими архивами не работает).")
+				j.addNote(T("Файлы в архиве зашифрованы паролем AES-256. Сообщите его получателю отдельно. Открыть архив можно в 7-Zip или WinRAR (Проводник Windows с такими архивами не работает)."))
 			}
 		}
 		if len(lines) == 1 {
@@ -191,14 +191,14 @@ func uploadWithRoutes(j *Job, routes []Route, it upItem) (string, string, error)
 			return "", "", errCancelled
 		}
 		if r.P != nil {
-			j.addNote("Маршрут: " + r.Name())
+			j.addNote(T("Маршрут: ") + r.Name())
 		}
 		link, info, err := uploadChain(j.ctx, r, it.path, it.name, func(done, total int64) {
 			pct := 0
 			if total > 0 {
 				pct = int(done * 100 / total)
 			}
-			j.setStatus(fmt.Sprintf("Загрузка «%s»: %d%% (%s из %s)", it.label, pct, humanSize(done), humanSize(total)))
+			j.setStatus(fmt.Sprintf(T("Загрузка «%s»: %d%% (%s из %s)"), it.label, pct, humanSize(done), humanSize(total)))
 		}, j.addNote)
 		j.setStatus("")
 		if err == nil {
@@ -207,7 +207,7 @@ func uploadWithRoutes(j *Job, routes []Route, it upItem) (string, string, error)
 		last = err
 	}
 	if last == nil {
-		last = errors.New("нет маршрута")
+		last = errors.New(T("нет маршрута"))
 	}
 	return "", "", last
 }
@@ -244,13 +244,13 @@ func startExchRecv(s Settings, pw, link, out string) (*Job, bool, error) {
 				return -1
 			}
 			if r.P != nil {
-				j.addNote("Маршрут: " + r.Name())
+				j.addNote(T("Маршрут: ") + r.Name())
 			}
 			p, err := downloadLink(j.ctx, r, l, dl, func(done, total int64) {
 				if total > 0 {
-					j.setStatus(fmt.Sprintf("Скачивание: %d%% (%s из %s)", int(done*100/total), humanSize(done), humanSize(total)))
+					j.setStatus(fmt.Sprintf(T("Скачивание: %d%% (%s из %s)"), int(done*100/total), humanSize(done), humanSize(total)))
 				} else {
-					j.setStatus("Скачивание: " + humanSize(done))
+					j.setStatus(T("Скачивание: ") + humanSize(done))
 				}
 			})
 			j.setStatus("")
@@ -264,11 +264,11 @@ func startExchRecv(s Settings, pw, link, out string) (*Job, bool, error) {
 			if j.isKilled() {
 				return -1
 			}
-			j.addNote("Ошибка: " + fmt.Sprint(last))
+			j.addNote(T("Ошибка: ") + fmt.Sprint(last))
 			return 1
 		}
 		if err := placeDownloaded(j, path, out, pw, pre); err != nil {
-			j.addNote("Ошибка: " + err.Error())
+			j.addNote(T("Ошибка: ") + err.Error())
 			return 2
 		}
 		return 0
@@ -293,16 +293,16 @@ func placeDownloaded(j *Job, path, out, pw string, pre map[string]bool) error {
 		zr.Close()
 		if isOurs {
 			if enc && pw == "" {
-				return errors.New("архив защищён паролем: введите пароль в поле «Пароль» и повторите")
+				return errors.New(T("архив защищён паролем: введите пароль в поле «Пароль» и повторите"))
 			}
-			j.addNote("Распаковка...")
+			j.addNote(T("Распаковка..."))
 			if err := extractZipPw(j, path, out, pw); err != nil {
 				if errors.Is(err, errZipPassword) {
 					return errZipPassword
 				}
-				return fmt.Errorf("распаковка не удалась: %v", err)
+				return fmt.Errorf(T("распаковка не удалась: %v"), err)
 			}
-			j.addNote("Готово: файлы в папке " + out)
+			j.addNote(T("Готово: файлы в папке ") + out)
 			return nil
 		}
 	}
@@ -315,6 +315,6 @@ func placeDownloaded(j *Job, path, out, pw string, pre map[string]bool) error {
 	if err := moveAny(path, dst); err != nil {
 		return err
 	}
-	j.addNote("Сохранено: " + dst)
+	j.addNote(T("Сохранено: ") + dst)
 	return nil
 }

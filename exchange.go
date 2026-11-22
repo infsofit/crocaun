@@ -87,17 +87,17 @@ func (x *Exchange) Start(pw, out, name string, onEvent func(ExchangeEvent)) erro
 	x.mu.Lock()
 	if x.running {
 		x.mu.Unlock()
-		return errors.New("режим обмена уже включён")
+		return errors.New(T("режим обмена уже включён"))
 	}
 	x.mu.Unlock()
 	if utf8.RuneCountInString(pw) < exchangeMinPw {
-		return fmt.Errorf("пароль режима обмена должен быть не короче %d символов", exchangeMinPw)
+		return fmt.Errorf(T("пароль режима обмена должен быть не короче %d символов"), exchangeMinPw)
 	}
 	if strings.TrimSpace(out) == "" {
-		return errors.New("укажите папку для сохранения (вкладка «Получить»)")
+		return errors.New(T("укажите папку для сохранения (вкладка «Получить»)"))
 	}
 	if err := os.MkdirAll(out, 0755); err != nil {
-		return fmt.Errorf("не удалось создать папку Share: %v", err)
+		return fmt.Errorf(T("не удалось создать папку Share: %v"), err)
 	}
 	port := lanRelayPorts[0]
 
@@ -114,9 +114,9 @@ func (x *Exchange) Start(pw, out, name string, onEvent func(ExchangeEvent)) erro
 		relay.Kill()
 		relay.Cleanup()
 		if msg == "" {
-			msg = "relay не запустился"
+			msg = T("relay не запустился")
 		}
-		return fmt.Errorf("не удалось открыть порт %s (возможно, он занят): %s", port, msg)
+		return fmt.Errorf(T("не удалось открыть порт %s (возможно, он занят): %s"), port, msg)
 	}
 
 	x.mu.Lock()
@@ -128,19 +128,19 @@ func (x *Exchange) Start(pw, out, name string, onEvent func(ExchangeEvent)) erro
 	id := instanceID
 	var warn []string
 	if stop, err := startResponder(id, roleRecv, name, mustAtoi(port)); err != nil {
-		warn = append(warn, "поиск устройств недоступен (UDP-порт занят)")
+		warn = append(warn, T("поиск устройств недоступен (UDP-порт занят)"))
 	} else {
 		x.mu.Lock()
 		x.stopResp = stop
 		x.mu.Unlock()
 	}
 	ips := localIPv4s()
-	msg := "Режим обмена включён. Адрес этого устройства: " + strings.Join(ips, ", ")
+	msg := T("Режим обмена включён. Адрес этого устройства: ") + strings.Join(ips, ", ")
 	if len(ips) == 0 {
-		msg = "Режим обмена включён (сетевых адресов не найдено)"
+		msg = T("Режим обмена включён (сетевых адресов не найдено)")
 	}
 	if len(warn) > 0 {
-		msg += ". Внимание: " + strings.Join(warn, "; ")
+		msg += T(". Внимание: ") + strings.Join(warn, "; ")
 	}
 	onEvent(ExchangeEvent{Time: time.Now(), Kind: "info", Msg: msg})
 
@@ -149,10 +149,10 @@ func (x *Exchange) Start(pw, out, name string, onEvent func(ExchangeEvent)) erro
 		go func() {
 			defer x.wg.Done()
 			if err := fwEnsure(); err != nil {
-				onEvent(ExchangeEvent{Time: time.Now(), Kind: "error", Msg: "Не удалось открыть порты в брандмауэре: " + err.Error() +
-					". Если другие устройства не видят это, разрешите crocaun.exe в брандмауэре вручную."})
+				onEvent(ExchangeEvent{Time: time.Now(), Kind: "error", Msg: T("Не удалось открыть порты в брандмауэре: ") + err.Error() +
+					T(". Если другие устройства не видят это, разрешите crocaun.exe в брандмауэре вручную.")})
 			} else {
-				onEvent(ExchangeEvent{Time: time.Now(), Kind: "info", Msg: "Порты в брандмауэре открыты"})
+				onEvent(ExchangeEvent{Time: time.Now(), Kind: "info", Msg: T("Порты в брандмауэре открыты")})
 			}
 		}()
 	}
@@ -214,7 +214,7 @@ func (x *Exchange) loop(pw, out, relayAddr string, onEvent func(ExchangeEvent)) 
 			fails, backoff, hfails = 0, time.Second, 0
 			ev := ExchangeEvent{Time: time.Now(), Kind: "received", Text: res.Text, Names: names, Files: res.HasFiles || len(names) > 0}
 			if renamed > 0 {
-				ev.Msg = fmt.Sprintf("совпали имена, новые версии сохранены с пометкой CONFLICT: %d", renamed)
+				ev.Msg = fmt.Sprintf(T("совпали имена, новые версии сохранены с пометкой CONFLICT: %d"), renamed)
 			}
 			onEvent(ev)
 			continue
@@ -242,7 +242,7 @@ func (x *Exchange) loop(pw, out, relayAddr string, onEvent func(ExchangeEvent)) 
 		fails++
 		if msg != lastErr || fails%20 == 0 {
 			lastErr = msg
-			onEvent(ExchangeEvent{Time: time.Now(), Kind: "error", Msg: "Приём не удался (попыток подряд: " + itoa(fails) + "): " + msg})
+			onEvent(ExchangeEvent{Time: time.Now(), Kind: "error", Msg: T("Приём не удался (попыток подряд: ") + itoa(fails) + "): " + msg})
 		}
 		if !x.sleep(backoff) {
 			return

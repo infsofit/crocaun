@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/flate"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -48,13 +47,13 @@ var storedExt = func() map[string]bool {
 // smartCompressHint - текст всплывающей подсказки к галочке «Умное сжатие».
 func smartCompressHint() string {
 	var sb strings.Builder
-	sb.WriteString("Умное сжатие: текст и файлы упаковываются в один архив перед отправкой\r\n")
-	sb.WriteString("(быстрее для больших файлов и множества мелких). Уже сжатые форматы\r\n")
-	sb.WriteString("не пережимаются, а кладутся в архив как есть:\r\n")
+	sb.WriteString(T("Умное сжатие: текст и файлы упаковываются в один архив перед отправкой\r\n"))
+	sb.WriteString(T("(быстрее для больших файлов и множества мелких). Уже сжатые форматы\r\n"))
+	sb.WriteString(T("не пережимаются, а кладутся в архив как есть:\r\n"))
 	for _, g := range storedGroups {
-		sb.WriteString(g.Name + ": " + strings.Join(g.Exts, " ") + "\r\n")
+		sb.WriteString(T(g.Name) + ": " + strings.Join(g.Exts, " ") + "\r\n")
 	}
-	sb.WriteString("Остальные файлы проверяются пробным сжатием: если выигрыш мал, они тоже кладутся без сжатия.")
+	sb.WriteString(T("Остальные файлы проверяются пробным сжатием: если выигрыш мал, они тоже кладутся без сжатия."))
 	return sb.String()
 }
 
@@ -162,16 +161,16 @@ func humanSize(n int64) string {
 	f := float64(n)
 	switch {
 	case f >= k*k*k:
-		return fmt.Sprintf("%.1f ГБ", f/(k*k*k))
+		return fmt.Sprintf(T("%.1f ГБ"), f/(k*k*k))
 	case f >= k*k:
-		return fmt.Sprintf("%.1f МБ", f/(k*k))
+		return fmt.Sprintf(T("%.1f МБ"), f/(k*k))
 	case f >= k:
-		return fmt.Sprintf("%.1f КБ", f/k)
+		return fmt.Sprintf(T("%.1f КБ"), f/k)
 	}
-	return fmt.Sprintf("%d Б", n)
+	return fmt.Sprintf(T("%d Б"), n)
 }
 
-var errCancelled = errors.New("отменено")
+var errCancelled error = trErr("отменено")
 
 // buildArchive собирает zip (текст + файлы/папки) в work и возвращает путь к нему.
 func buildArchive(j *Job, work, text, from string, items []string) (string, error) {
@@ -255,7 +254,7 @@ func buildArchive(j *Job, work, text, from string, items []string) (string, erro
 					if total > 0 {
 						pct = int(done * 100 / total)
 					}
-					j.setStatus(fmt.Sprintf("Архивирование: %d%% (%s)", pct, filepath.Base(e.src)))
+					j.setStatus(fmt.Sprintf(T("Архивирование: %d%% (%s)"), pct, filepath.Base(e.src)))
 					if j.isKilled() {
 						src.Close()
 						return fail(errCancelled)
@@ -281,10 +280,10 @@ func buildArchive(j *Job, work, text, from string, items []string) (string, erro
 	}
 	j.setStatus("")
 	if st, err := os.Stat(out); err == nil {
-		j.addNote(fmt.Sprintf("Архив: %s -> %s", humanSize(total), humanSize(st.Size())))
+		j.addNote(fmt.Sprintf(T("Архив: %s -> %s"), humanSize(total), humanSize(st.Size())))
 	}
 	if skipped > 0 {
-		j.addNote(fmt.Sprintf("Пропущено элементов (ссылки, недоступные): %d", skipped))
+		j.addNote(fmt.Sprintf(T("Пропущено элементов (ссылки, недоступные): %d"), skipped))
 	}
 	return out, nil
 }
@@ -325,12 +324,12 @@ func extractZipPw(j *Job, zipPath, out, pw string) error {
 		}
 		name := strings.ReplaceAll(f.Name, "\\", "/")
 		if !safeArchiveName(name) {
-			return fmt.Errorf("небезопасный путь в архиве: %q", f.Name)
+			return fmt.Errorf(T("небезопасный путь в архиве: %q"), f.Name)
 		}
 		target := filepath.Join(base, filepath.FromSlash(name))
 		rel, err := filepath.Rel(base, target)
 		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			return fmt.Errorf("небезопасный путь в архиве: %q", f.Name)
+			return fmt.Errorf(T("небезопасный путь в архиве: %q"), f.Name)
 		}
 		if f.Mode()&fs.ModeSymlink != 0 {
 			continue
@@ -368,7 +367,7 @@ func extractZipPw(j *Job, zipPath, out, pw string) error {
 					if total > 0 {
 						pct = int(done * 100 / total)
 					}
-					j.setStatus(fmt.Sprintf("Распаковка: %d%% (%s)", pct, filepath.Base(target)))
+					j.setStatus(fmt.Sprintf(T("Распаковка: %d%% (%s)"), pct, filepath.Base(target)))
 				}
 			}
 			if rerr != nil {
@@ -414,10 +413,10 @@ func extractArchives(j *Job, out string, pre map[string]bool) error {
 			continue
 		}
 		zp := filepath.Join(out, e.Name())
-		j.addNote("Получен архив, распаковка...")
+		j.addNote(T("Получен архив, распаковка..."))
 		if err := extractZip(j, zp, out); err != nil {
 			if first == nil {
-				first = fmt.Errorf("распаковка не удалась: %v (архив оставлен: %s)", err, zp)
+				first = fmt.Errorf(T("распаковка не удалась: %v (архив оставлен: %s)"), err, zp)
 			}
 			continue
 		}

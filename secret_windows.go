@@ -37,7 +37,7 @@ func platformSeal(plain string) (string, error) {
 func platformOpen(v string) (string, error) {
 	raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(v, sealPrefix))
 	if err != nil || len(raw) == 0 {
-		return "", errors.New("повреждённые данные")
+		return "", errors.New(T("повреждённые данные"))
 	}
 	din := blobOf(raw)
 	ent := blobOf(dpapiEntropy)

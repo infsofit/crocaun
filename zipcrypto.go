@@ -177,7 +177,7 @@ func openZipClassic(f *zip.File, pw string) (io.ReadCloser, error) {
 		return nil, errZipPassword
 	}
 	if f.Method != zip.Store && f.Method != zip.Deflate {
-		return nil, errors.New("неподдерживаемый способ сжатия в архиве")
+		return nil, errors.New(T("неподдерживаемый способ сжатия в архиве"))
 	}
 	raw, err := f.OpenRaw()
 	if err != nil {

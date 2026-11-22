@@ -24,8 +24,8 @@ const (
 )
 
 var (
-	errLocked      = errors.New("заблокировано мастер-паролем")
-	errWrongMaster = errors.New("неверный мастер-пароль")
+	errLocked      = trErr("заблокировано мастер-паролем")
+	errWrongMaster = trErr("неверный мастер-пароль")
 )
 
 // Реализации DPAPI подменяются в тестах на системах без защиты.
@@ -64,7 +64,7 @@ func deriveAEAD(pw string, salt []byte) (cipher.AEAD, error) {
 // masterEnable включает мастер-пароль с новой солью (смена пароля - то же самое).
 func masterEnable(pw string) error {
 	if pw == "" {
-		return errors.New("пустой мастер-пароль")
+		return errors.New(T("пустой мастер-пароль"))
 	}
 	salt := make([]byte, 16)
 	if _, err := rand.Read(salt); err != nil {
@@ -84,7 +84,7 @@ func masterEnable(pw string) error {
 func masterUnlock(pw, saltB64, check string) error {
 	salt, err := base64.StdEncoding.DecodeString(saltB64)
 	if err != nil || len(salt) == 0 {
-		return errors.New("в файле настроек нет данных мастер-пароля")
+		return errors.New(T("в файле настроек нет данных мастер-пароля"))
 	}
 	aead, err := deriveAEAD(pw, salt)
 	if err != nil {
@@ -119,11 +119,11 @@ func mkSealWith(aead cipher.AEAD, plain string) (string, error) {
 func mkOpenWith(aead cipher.AEAD, v string) (string, error) {
 	raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(v, mkPrefix))
 	if err != nil {
-		return "", errors.New("повреждённые данные")
+		return "", errors.New(T("повреждённые данные"))
 	}
 	plain, err := crypt.DecryptChaCha(raw, aead)
 	if err != nil {
-		return "", errors.New("повреждённые данные или неверный ключ")
+		return "", errors.New(T("повреждённые данные или неверный ключ"))
 	}
 	return string(plain), nil
 }

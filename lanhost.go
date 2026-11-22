@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -49,14 +48,14 @@ func startHostedSend(s Settings, pw, text string, items []string, name string) (
 		relay.Kill()
 		relay.Cleanup()
 		if msg == "" {
-			msg = "relay не запустился"
+			msg = T("relay не запустился")
 		}
-		return nil, nil, "", fmt.Errorf("не удалось открыть порт %s (возможно, он занят другим режимом или программой): %s", port, msg)
+		return nil, nil, "", fmt.Errorf(T("не удалось открыть порт %s (возможно, он занят другим режимом или программой): %s"), port, msg)
 	}
 	host := &HostSession{relay: relay}
 	note := ""
 	if stop, err := startResponder(instanceID, roleSend, name, mustAtoi(port)); err != nil {
-		note = "Поиск по сети недоступен (UDP-порт занят): получатель должен ввести адрес вручную. "
+		note = T("Поиск по сети недоступен (UDP-порт занят): получатель должен ввести адрес вручную. ")
 	} else {
 		host.stopAnn = stop
 	}
@@ -69,22 +68,22 @@ func startHostedSend(s Settings, pw, text string, items []string, name string) (
 		return nil, nil, "", err
 	}
 	ips := localIPv4s()
-	addr := "(адреса не найдены)"
+	addr := T("(адреса не найдены)")
 	if len(ips) > 0 {
 		addr = strings.Join(ips, ", ")
 	}
-	note += "Ждём получателя. Адрес этого устройства: " + addr + ". Получатель находит вас кнопкой «Найти в сети» " +
-		"на вкладке «Получить» или вводит адрес вручную."
+	note += T("Ждём получателя. Адрес этого устройства: ") + addr + T(". Получатель находит вас кнопкой «Найти в сети» ") +
+		T("на вкладке «Получить» или вводит адрес вручную.")
 	if !skipFirewall {
 		go func() {
 			if err := fwEnsure(); err != nil {
-				job.addNote("Не удалось открыть порты в брандмауэре: " + err.Error() + ". Если получатель не подключается, разрешите crocaun.exe в брандмауэре вручную.")
+				job.addNote(T("Не удалось открыть порты в брандмауэре: ") + err.Error() + T(". Если получатель не подключается, разрешите crocaun.exe в брандмауэре вручную."))
 			} else {
-				job.addNote("Порты в брандмауэре открыты")
+				job.addNote(T("Порты в брандмауэре открыты"))
 			}
 		}()
 	}
 	return job, host, note, nil
 }
 
-var errBusyRole = errors.New("порты заняты режимом обмена: выключите его на вкладке «Обмен»")
+var errBusyRole error = trErr("порты заняты режимом обмена: выключите его на вкладке «Обмен»")

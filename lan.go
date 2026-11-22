@@ -324,9 +324,9 @@ func planScanPort(port int) ScanPlan {
 		ones, _ := it.n.Mask.Size()
 		line := it.name + ": " + it.n.IP.String() + "/" + itoa(ones)
 		if n > 0 {
-			line += " - проверяю " + itoa(n) + " адресов (" + first + " - " + last + ")"
+			line += T(" - проверяю ") + itoa(n) + T(" адресов (") + first + " - " + last + ")"
 		} else {
-			line += " - только широковещательный запрос"
+			line += T(" - только широковещательный запрос")
 		}
 		plan.Lines = append(plan.Lines, line)
 		plan.Hosts += n

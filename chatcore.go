@@ -298,12 +298,12 @@ func (r *ChatRoom) ClearLocal() {
 // ExportText - история в виде обычного текста.
 func (r *ChatRoom) ExportText() string {
 	var sb strings.Builder
-	sb.WriteString("Чат: " + r.Label + "\r\n\r\n")
+	sb.WriteString(T("Чат: ") + r.Label + "\r\n\r\n")
 	for _, m := range r.Messages() {
 		t := time.Unix(m.TS/1000, 0).Format("2006-01-02 15:04:05")
 		body := strings.ReplaceAll(strings.ReplaceAll(m.Text, "\r\n", "\n"), "\n", "\r\n")
 		if m.Kind == "file" && m.File != nil {
-			body = "[файл] " + m.File.Name + " (" + humanSize(m.File.Size) + ")"
+			body = T("[файл] ") + m.File.Name + " (" + humanSize(m.File.Size) + ")"
 		}
 		sb.WriteString(t + "  " + m.Name + ": " + body + "\r\n")
 	}
@@ -377,7 +377,7 @@ func (m ChatMsg) FormatLine() string {
 		name = "?"
 	}
 	if m.Kind == "file" && m.File != nil {
-		return t + "  " + name + ": [файл] " + m.File.Name + " (" + humanSize(m.File.Size) + ")"
+		return t + "  " + name + T(": [файл] ") + m.File.Name + " (" + humanSize(m.File.Size) + ")"
 	}
 	return t + "  " + name + ": " + m.Text
 }

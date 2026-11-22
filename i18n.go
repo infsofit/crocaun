@@ -13,7 +13,7 @@ import (
 
 var curLang atomic.Value // "ru" | "en"
 
-func init() { curLang.Store(detectLang()) }
+func init() { curLang.Store(detectLang()); initUIStrings() }
 
 // detectLang определяет язык системы.
 func detectLang() string {
@@ -51,6 +51,7 @@ func setLang(pref string) {
 	default:
 		curLang.Store(detectLang())
 	}
+	initUIStrings()
 }
 
 func isEnglish() bool { return curLang.Load() == "en" }

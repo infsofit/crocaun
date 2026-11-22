@@ -106,7 +106,7 @@ func elevated(arg string, done func() bool) error {
 	file, _ := windows.UTF16PtrFromString(exe)
 	args, _ := windows.UTF16PtrFromString(arg)
 	if err := windows.ShellExecute(0, verb, file, args, nil, windows.SW_HIDE); err != nil {
-		return fmt.Errorf("запрос прав администратора отклонён или недоступен: %v", err)
+		return fmt.Errorf(T("запрос прав администратора отклонён или недоступен: %v"), err)
 	}
 	for i := 0; i < 120; i++ {
 		time.Sleep(500 * time.Millisecond)
@@ -114,7 +114,7 @@ func elevated(arg string, done func() bool) error {
 			return nil
 		}
 	}
-	return errors.New("не дождались выполнения операции от имени администратора")
+	return errors.New(T("не дождались выполнения операции от имени администратора"))
 }
 
 // fwEnsure гарантирует наличие правил: сначала пробует напрямую (если программа запущена от администратора),

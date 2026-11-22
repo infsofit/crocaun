@@ -141,7 +141,7 @@ func (n *ChatNode) Start() error {
 	n.loadFiles()
 	ln, err := net.Listen("tcp4", fmt.Sprintf(":%d", n.tcpPort))
 	if err != nil {
-		return fmt.Errorf("порт чата %d занят: %v", n.tcpPort, err)
+		return fmt.Errorf(T("порт чата %d занят: %v"), n.tcpPort, err)
 	}
 	n.ln = ln
 	n.wg.Add(1)
@@ -291,10 +291,10 @@ func (n *ChatNode) broadcast(roomID string, f chatFrame, except *chatConn) {
 func (n *ChatNode) SendText(r *ChatRoom, text string) error {
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return errors.New("пустое сообщение")
+		return errors.New(T("пустое сообщение"))
 	}
 	if len([]rune(text)) > 8000 {
-		return errors.New("сообщение слишком длинное (до 8000 символов)")
+		return errors.New(T("сообщение слишком длинное (до 8000 символов)"))
 	}
 	n.post(r, ChatMsg{Kind: "msg", Text: text})
 	return nil
@@ -307,7 +307,7 @@ func (n *ChatNode) SendFile(r *ChatRoom, path string, _ func(string)) error {
 		return err
 	}
 	if st.IsDir() {
-		return errors.New("папки пока нельзя отправлять в чат - добавьте файлы или заархивируйте папку")
+		return errors.New(T("папки пока нельзя отправлять в чат - добавьте файлы или заархивируйте папку"))
 	}
 	tok := randHex(16)
 	n.mu.Lock()
@@ -417,13 +417,13 @@ func (n *ChatNode) PeerAddrs() []string {
 func (n *ChatNode) AddPeer(addr string) error {
 	addr = strings.TrimSpace(addr)
 	if addr == "" {
-		return errors.New("пустой адрес")
+		return errors.New(T("пустой адрес"))
 	}
 	if _, _, err := net.SplitHostPort(addr); err != nil {
 		addr = net.JoinHostPort(addr, itoa(n.tcpPort))
 	}
 	if n.isOwn(addr) {
-		return errors.New("это адрес этого компьютера")
+		return errors.New(T("это адрес этого компьютера"))
 	}
 	n.mu.Lock()
 	n.cands[addr] = &chatCand{addr: addr, manual: true}
@@ -533,7 +533,7 @@ func readWire(br *bufio.Reader) (chatWire, error) {
 		return w, err
 	}
 	if len(line) > 2<<20 {
-		return w, errors.New("слишком длинная строка")
+		return w, errors.New(T("слишком длинная строка"))
 	}
 	return w, json.Unmarshal(line, &w)
 }
@@ -705,7 +705,7 @@ func (n *ChatNode) scanLoop() {
 func (n *ChatNode) Scan(wait time.Duration) []string {
 	conn, err := net.ListenUDP("udp4", &net.UDPAddr{})
 	if err != nil {
-		return []string{"поиск: " + err.Error()}
+		return []string{T("поиск: ") + err.Error()}
 	}
 	defer conn.Close()
 	var lines, targets []string
@@ -747,7 +747,7 @@ func (n *ChatNode) Scan(wait time.Duration) []string {
 			n.addCand(a)
 		}
 	}
-	lines = append(lines, fmt.Sprintf("новых устройств найдено: %d, подключено: %d", found, n.PeerCount()))
+	lines = append(lines, fmt.Sprintf(T("новых устройств найдено: %d, подключено: %d"), found, n.PeerCount()))
 	n.mu.Lock()
 	n.lastScan = lines
 	n.mu.Unlock()
@@ -812,7 +812,7 @@ func uniquePath(dir, name string) string {
 // Download скачивает файл напрямую с компьютера отправителя (перебирает его адреса). progress может быть nil.
 func (n *ChatNode) Download(ctx context.Context, f ChatFile, destDir string, progress func(done, total int64)) (string, error) {
 	if len(f.Addrs) == 0 {
-		return "", errors.New("у отправителя нет адресов")
+		return "", errors.New(T("у отправителя нет адресов"))
 	}
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return "", err
@@ -852,7 +852,7 @@ func (n *ChatNode) Download(ctx context.Context, f ChatFile, destDir string, pro
 			}
 			_ = c.SetReadDeadline(time.Time{})
 			if resp.T != "file" || !resp.OK {
-				return "", errors.New("отправитель больше не предлагает этот файл")
+				return "", errors.New(T("отправитель больше не предлагает этот файл"))
 			}
 			out := uniquePath(destDir, safeFileName(f.Name))
 			part := out + ".part"
@@ -901,5 +901,5 @@ func (n *ChatNode) Download(ctx context.Context, f ChatFile, destDir string, pro
 		}
 		lastErr = err
 	}
-	return "", fmt.Errorf("не удалось скачать: %v", lastErr)
+	return "", fmt.Errorf(T("не удалось скачать: %v"), lastErr)
 }

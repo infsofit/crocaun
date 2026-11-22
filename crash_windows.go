@@ -24,7 +24,7 @@ func runGuarded(mw *walk.MainWindow) {
 					logCrash(r)
 					func() {
 						defer func() { _ = recover() }()
-						walk.MsgBox(mw, "crocau", "Произошла внутренняя ошибка, программа продолжает работу.\nПодробности записаны в файл crocau-crash.log рядом с программой - пришлите его разработчику.", walk.MsgBoxIconWarning)
+						walk.MsgBox(mw, "crocau", T("Произошла внутренняя ошибка, программа продолжает работу.\nПодробности записаны в файл crocau-crash.log рядом с программой - пришлите его разработчику."), walk.MsgBoxIconWarning)
 					}()
 				}
 			}()

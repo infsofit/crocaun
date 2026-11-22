@@ -73,7 +73,7 @@ func withShellLink(f func(psl, ppf uintptr) error) error {
 		var psl uintptr
 		if hr, _, _ := procCoCreateInstance.Call(uintptr(unsafe.Pointer(&clsidShellLink)), 0, 1, // CLSCTX_INPROC_SERVER
 			uintptr(unsafe.Pointer(&iidIShellLinkW)), uintptr(unsafe.Pointer(&psl))); hr != 0 || psl == 0 {
-			ch <- fmt.Errorf("не удалось создать ярлык: 0x%x", hr)
+			ch <- fmt.Errorf(T("не удалось создать ярлык: 0x%x"), hr)
 			return
 		}
 		defer comRelease(psl)

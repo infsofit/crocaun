@@ -24,6 +24,10 @@ func main() {
 	}
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
+		case "--selftest", "--guitest", "--battest", "--fwtest", "--chattest", "--nettest":
+			setLang("ru") // тесты сверяют русские тексты
+		}
+		switch os.Args[1] {
 		case "--croc":
 			os.Args = append([]string{"croc"}, os.Args[2:]...)
 			if err := cli.Run(); err != nil {

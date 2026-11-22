@@ -24,7 +24,7 @@ type Route struct {
 
 func (r Route) Name() string {
 	if r.P == nil {
-		return "напрямую"
+		return T("напрямую")
 	}
 	return strings.ToUpper(r.P.Type) + " " + r.P.Addr
 }
@@ -36,7 +36,7 @@ func splitTarget(target string) (string, int, error) {
 	}
 	p, err := strconv.Atoi(ps)
 	if err != nil || p < 1 || p > 65535 {
-		return "", 0, errors.New("неверный порт")
+		return "", 0, errors.New(T("неверный порт"))
 	}
 	return h, p, nil
 }
@@ -66,7 +66,7 @@ func dialVia(r Route, addr string, timeout time.Duration) (net.Conn, error) {
 	}
 	conn, err := net.DialTimeout("tcp", r.P.Addr, timeout)
 	if err != nil {
-		return nil, fmt.Errorf("прокси %s недоступен: %v", r.P.Addr, err)
+		return nil, fmt.Errorf(T("прокси %s недоступен: %v"), r.P.Addr, err)
 	}
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 	out := conn
@@ -78,7 +78,7 @@ func dialVia(r Route, addr string, timeout time.Duration) (net.Conn, error) {
 	case "http":
 		out, err = httpConnect(conn, r.P, addr)
 	default:
-		err = fmt.Errorf("неизвестный тип прокси %q", r.P.Type)
+		err = fmt.Errorf(T("неизвестный тип прокси %q"), r.P.Type)
 	}
 	if err != nil {
 		conn.Close()
@@ -106,16 +106,16 @@ func socks5Connect(conn net.Conn, p *ProxyCfg, target string) error {
 		return fmt.Errorf("socks5: %v", err)
 	}
 	if resp[0] != 5 {
-		return errors.New("socks5: это не SOCKS5-прокси")
+		return errors.New(T("socks5: это не SOCKS5-прокси"))
 	}
 	switch resp[1] {
 	case 0:
 	case 2:
 		if !p.Auth {
-			return errors.New("socks5: прокси требует логин и пароль")
+			return errors.New(T("socks5: прокси требует логин и пароль"))
 		}
 		if len(p.User) > 255 || len(p.Pass) > 255 {
-			return errors.New("socks5: слишком длинный логин или пароль")
+			return errors.New(T("socks5: слишком длинный логин или пароль"))
 		}
 		buf := []byte{1, byte(len(p.User))}
 		buf = append(buf, p.User...)
@@ -129,10 +129,10 @@ func socks5Connect(conn net.Conn, p *ProxyCfg, target string) error {
 			return fmt.Errorf("socks5: %v", err)
 		}
 		if ar[1] != 0 {
-			return errors.New("socks5: неверный логин или пароль")
+			return errors.New(T("socks5: неверный логин или пароль"))
 		}
 	default:
-		return errors.New("socks5: прокси не принял способ авторизации")
+		return errors.New(T("socks5: прокси не принял способ авторизации"))
 	}
 	req := []byte{5, 1, 0}
 	if ip := net.ParseIP(host); ip != nil {
@@ -145,7 +145,7 @@ func socks5Connect(conn net.Conn, p *ProxyCfg, target string) error {
 		}
 	} else {
 		if len(host) > 255 {
-			return errors.New("слишком длинное имя сервера")
+			return errors.New(T("слишком длинное имя сервера"))
 		}
 		req = append(req, 3, byte(len(host)))
 		req = append(req, host...)
@@ -159,10 +159,10 @@ func socks5Connect(conn net.Conn, p *ProxyCfg, target string) error {
 		return fmt.Errorf("socks5: %v", err)
 	}
 	if h[0] != 5 {
-		return errors.New("socks5: неверный ответ прокси")
+		return errors.New(T("socks5: неверный ответ прокси"))
 	}
 	if h[1] != 0 {
-		return fmt.Errorf("socks5: прокси отказал (код %d)", h[1])
+		return fmt.Errorf(T("socks5: прокси отказал (код %d)"), h[1])
 	}
 	var n int
 	switch h[3] {
@@ -177,7 +177,7 @@ func socks5Connect(conn net.Conn, p *ProxyCfg, target string) error {
 		}
 		n = int(l[0])
 	default:
-		return errors.New("socks5: неверный ответ прокси")
+		return errors.New(T("socks5: неверный ответ прокси"))
 	}
 	_, err = io.CopyN(io.Discard, conn, int64(n+2))
 	return err
@@ -194,7 +194,7 @@ func socks4Connect(conn net.Conn, p *ProxyCfg, target string) error {
 	if ip := net.ParseIP(host); ip != nil {
 		ip4 := ip.To4()
 		if ip4 == nil {
-			return errors.New("socks4: IPv6 не поддерживается")
+			return errors.New(T("socks4: IPv6 не поддерживается"))
 		}
 		req = append(req, ip4...)
 	} else {
@@ -217,7 +217,7 @@ func socks4Connect(conn net.Conn, p *ProxyCfg, target string) error {
 		return fmt.Errorf("socks4: %v", err)
 	}
 	if r[1] != 0x5A {
-		return fmt.Errorf("socks4: прокси отказал (код 0x%02X)", r[1])
+		return fmt.Errorf(T("socks4: прокси отказал (код 0x%02X)"), r[1])
 	}
 	return nil
 }
@@ -240,7 +240,7 @@ func httpConnect(conn net.Conn, p *ProxyCfg, target string) (net.Conn, error) {
 	if len(f) < 2 || f[1] != "200" {
 		msg := strings.TrimSpace(line)
 		if len(f) >= 2 && f[1] == "407" {
-			msg = "прокси требует логин и пароль или они неверны (407)"
+			msg = T("прокси требует логин и пароль или они неверны (407)")
 		}
 		return nil, errors.New("http: " + msg)
 	}
@@ -474,7 +474,7 @@ func probe(r Route, relay string, timeout time.Duration) (time.Duration, error) 
 		return 0, err
 	}
 	if string(b) != "pong" {
-		return 0, errors.New("нет ответа pong")
+		return 0, errors.New(T("нет ответа pong"))
 	}
 	return time.Since(start), nil
 }
@@ -549,7 +549,7 @@ func routesFor(s Settings) ([]Route, error) {
 			continue
 		}
 		if !validAddr(p.Addr) {
-			return nil, fmt.Errorf("неверный адрес прокси %q: нужен вид хост:порт", p.Addr)
+			return nil, fmt.Errorf(T("неверный адрес прокси %q: нужен вид хост:порт"), p.Addr)
 		}
 		list = append(list, Route{P: &p})
 	}
@@ -558,13 +558,13 @@ func routesFor(s Settings) ([]Route, error) {
 		return []Route{{}}, nil
 	case modeProxy:
 		if s.ProxySel < 0 || s.ProxySel >= len(s.Proxies) || strings.TrimSpace(s.Proxies[s.ProxySel].Addr) == "" {
-			return nil, errors.New("Режим «Только выбранный прокси»: выберите прокси кружком и укажите его адрес:порт (вкладка «Прокси»).")
+			return nil, errors.New(T("Режим «Только выбранный прокси»: выберите прокси кружком и укажите его адрес:порт (вкладка «Прокси»)."))
 		}
 		p := s.Proxies[s.ProxySel]
 		p.Type = normType(p.Type)
 		p.Addr = strings.TrimSpace(p.Addr)
 		if !validAddr(p.Addr) {
-			return nil, fmt.Errorf("неверный адрес прокси %q: нужен вид хост:порт", p.Addr)
+			return nil, fmt.Errorf(T("неверный адрес прокси %q: нужен вид хост:порт"), p.Addr)
 		}
 		return []Route{{P: &p}}, nil
 	default:

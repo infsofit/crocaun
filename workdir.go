@@ -33,7 +33,7 @@ func parseWorkdirArg(args []string) (rest []string, dir string, err error) {
 		switch {
 		case a == "-w" || a == "--workdir" || a == "/w":
 			if i+1 >= len(args) || strings.TrimSpace(args[i+1]) == "" {
-				return nil, "", fmt.Errorf("после %s нужно указать папку", a)
+				return nil, "", fmt.Errorf(T("после %s нужно указать папку"), a)
 			}
 			dir = args[i+1]
 			i++
@@ -46,7 +46,7 @@ func parseWorkdirArg(args []string) (rest []string, dir string, err error) {
 			continue
 		}
 		if strings.TrimSpace(dir) == "" {
-			return nil, "", fmt.Errorf("пустая папка в параметре %s", a)
+			return nil, "", fmt.Errorf(T("пустая папка в параметре %s"), a)
 		}
 	}
 	return rest, dir, nil
@@ -70,7 +70,7 @@ func applyWorkdir() error {
 		return err
 	}
 	if err := os.MkdirAll(abs, 0o755); err != nil {
-		return fmt.Errorf("не удалось создать рабочую папку %s: %v", abs, err)
+		return fmt.Errorf(T("не удалось создать рабочую папку %s: %v"), abs, err)
 	}
 	exeDirOverride = abs
 	os.Args = append([]string{os.Args[0]}, rest...)

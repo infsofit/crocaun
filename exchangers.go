@@ -36,7 +36,7 @@ func uploadTextURL(body string) (string, error) {
 		if len(b) > 60 {
 			b = b[:60]
 		}
-		return "", fmt.Errorf("неожиданный ответ: %q", b)
+		return "", fmt.Errorf(T("неожиданный ответ: %q"), b)
 	}
 	if i := strings.IndexAny(b, " \r\n"); i > 0 {
 		b = b[:i]
@@ -189,14 +189,14 @@ func uploadChain(ctx context.Context, r Route, file, name string, prog func(done
 		if ctx.Err() != nil {
 			return "", "", errCancelled
 		}
-		note("Загрузка на " + p.name + "...")
+		note(T("Загрузка на ") + p.name + "...")
 		c := httpClientVia(r, 2*time.Hour)
 		// на каждый обменник - ограниченное время (иначе зависший сервис блокирует остальные)
 		pctx, pcancel := context.WithTimeout(ctx, 90*time.Second+time.Duration(size/(50*1024))*time.Second)
 		u, err := p.upload(pctx, c, file, name, size, func(d int64) { prog(d, size) })
 		pcancel()
 		if err == nil {
-			return u, p.name + ", хранится ~" + p.keep, nil
+			return u, p.name + T(", хранится ~") + p.keep, nil
 		}
 		if ctx.Err() != nil {
 			return "", "", errCancelled
@@ -205,7 +205,7 @@ func uploadChain(ctx context.Context, r Route, file, name string, prog func(done
 		errs = append(errs, p.name+": "+err.Error())
 	}
 	if len(errs) == 0 {
-		return "", "", fmt.Errorf("файл (%s) больше предела всех обменников", humanSize(size))
+		return "", "", fmt.Errorf(T("файл (%s) больше предела всех обменников"), humanSize(size))
 	}
 	return "", "", errors.New(strings.Join(errs, "; "))
 }
@@ -220,7 +220,7 @@ func normalizeLink(s string) (string, error) {
 	}
 	u, err := url.Parse(s)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return "", errors.New("вставьте ссылку вида https://...")
+		return "", errors.New(T("вставьте ссылку вида https://..."))
 	}
 	if strings.HasSuffix(u.Host, "tmpfiles.org") {
 		return fixTmpfiles(s), nil
@@ -242,7 +242,7 @@ func downloadLink(ctx context.Context, r Route, link, dir string, prog func(done
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("HTTP %d (ссылка устарела или недоступна)", resp.StatusCode)
+		return "", fmt.Errorf(T("HTTP %d (ссылка устарела или недоступна)"), resp.StatusCode)
 	}
 	name := ""
 	if cd := resp.Header.Get("Content-Disposition"); cd != "" {

@@ -60,7 +60,7 @@ type NetChat struct {
 func NewNetChat(dir string, privHex, name string, getSettings func() Settings) (*NetChat, error) {
 	kb, err := hex.DecodeString(privHex)
 	if err != nil || len(kb) != 32 {
-		return nil, errors.New("неверный ключ чата")
+		return nil, errors.New(T("неверный ключ чата"))
 	}
 	priv := nostrKeyFromBytes(kb)
 	n := &NetChat{Dir: dir, getSettings: getSettings, priv: priv, pub: nostrPubHex(priv), name: name,
@@ -98,7 +98,7 @@ func (n *NetChat) Start() error {
 	n.mu.Lock()
 	n.ready = true
 	for _, u := range n.relays {
-		n.rs[u] = &relayState{url: u, status: "подключение...", pend: map[string]nostrEvent{}}
+		n.rs[u] = &relayState{url: u, status: T("подключение..."), pend: map[string]nostrEvent{}}
 	}
 	n.mu.Unlock()
 	for _, u := range n.relays {
@@ -244,7 +244,7 @@ func (n *NetChat) post(r *ChatRoom, m ChatMsg) error {
 	f := chatFrame{ID: ev.ID, TS: ev.CreatedAt * 1000, C: ev.Content, A: ev.PubKey, S: ev.Sig}
 	r.expectAuthor(f.ID, n.pub)
 	if _, ok := r.add(f, true); !ok {
-		return errors.New("не удалось сохранить сообщение")
+		return errors.New(T("не удалось сохранить сообщение"))
 	}
 	n.publish(ev)
 	if m.Kind != "hi" && n.OnUpdate != nil {
@@ -256,10 +256,10 @@ func (n *NetChat) post(r *ChatRoom, m ChatMsg) error {
 func (n *NetChat) SendText(r *ChatRoom, text string) error {
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return errors.New("пустое сообщение")
+		return errors.New(T("пустое сообщение"))
 	}
 	if len([]rune(text)) > 8000 {
-		return errors.New("сообщение слишком длинное (до 8000 символов)")
+		return errors.New(T("сообщение слишком длинное (до 8000 символов)"))
 	}
 	return n.post(r, ChatMsg{Kind: "msg", Text: text})
 }
@@ -322,7 +322,7 @@ func (n *NetChat) relayLoop(u string) {
 		}
 		routes, err := routesFor(n.getSettings())
 		if err != nil {
-			n.setStatus(u, "настройки прокси: "+trimErr(err))
+			n.setStatus(u, T("настройки прокси: ")+trimErr(err))
 			if n.sleep(20 * time.Second) {
 				return
 			}
@@ -339,7 +339,7 @@ func (n *NetChat) relayLoop(u string) {
 			}
 		}
 		if ws == nil {
-			n.setStatus(u, "недоступен: "+trimErr(derr))
+			n.setStatus(u, T("недоступен: ")+trimErr(derr))
 			if n.sleep(backoff) {
 				return
 			}
@@ -353,7 +353,7 @@ func (n *NetChat) relayLoop(u string) {
 		rs := n.rs[u]
 		rs.ws, rs.seen, rs.eose = ws, map[string]bool{}, false
 		n.mu.Unlock()
-		n.setStatus(u, "на связи")
+		n.setStatus(u, T("на связи"))
 		n.subscribe(rs)
 		err = n.session(rs)
 		n.mu.Lock()
@@ -365,7 +365,7 @@ func (n *NetChat) relayLoop(u string) {
 			return
 		default:
 		}
-		st := "переподключение"
+		st := T("переподключение")
 		if err != nil {
 			st += ": " + trimErr(err)
 		}
@@ -503,7 +503,7 @@ func (n *NetChat) session(rs *relayState) error {
 			if len(arr) > 2 {
 				_ = json.Unmarshal(arr[2], &msg)
 			}
-			n.setStatus(rs.url, "сервер закрыл подписку: "+trimErr(errors.New(msg)))
+			n.setStatus(rs.url, T("сервер закрыл подписку: ")+trimErr(errors.New(msg)))
 		}
 	}
 }
@@ -607,7 +607,7 @@ func (n *NetChat) SendFile(r *ChatRoom, path string, note func(string)) error {
 		return err
 	}
 	if st.IsDir() {
-		return errors.New("папки пока нельзя отправлять в чат - добавьте файлы или заархивируйте папку")
+		return errors.New(T("папки пока нельзя отправлять в чат - добавьте файлы или заархивируйте папку"))
 	}
 	routes, err := routesFor(n.getSettings())
 	if err != nil {
@@ -622,7 +622,7 @@ func (n *NetChat) SendFile(r *ChatRoom, path string, note func(string)) error {
 	tmpPath := tmp.Name()
 	tmp.Close()
 	defer os.Remove(tmpPath)
-	note("Шифрую «" + filepath.Base(path) + "»...")
+	note(T("Шифрую «") + filepath.Base(path) + "»...")
 	if err := chatEncryptFile(path, tmpPath, key); err != nil {
 		return err
 	}
@@ -631,10 +631,10 @@ func (n *NetChat) SendFile(r *ChatRoom, path string, note func(string)) error {
 	for _, rt := range routes {
 		var info string
 		link, info, last = uploadChain(context.Background(), rt, tmpPath, "crocau-"+randHex(5)+".bin", func(done, total int64) {
-			note(fmt.Sprintf("Загрузка «%s»: %s из %s", filepath.Base(path), humanSize(done), humanSize(total)))
+			note(fmt.Sprintf(T("Загрузка «%s»: %s из %s"), filepath.Base(path), humanSize(done), humanSize(total)))
 		}, func(s string) { note(s) })
 		if last == nil {
-			note("Файл загружен (" + info + ")")
+			note(T("Файл загружен (") + info + ")")
 			break
 		}
 	}
@@ -649,11 +649,11 @@ func (n *NetChat) Download(ctx context.Context, f ChatFile, destDir string, prog
 		progress = func(int64, int64) {}
 	}
 	if f.Link == "" || f.Key == "" {
-		return "", errors.New("в сообщении нет ссылки на файл")
+		return "", errors.New(T("в сообщении нет ссылки на файл"))
 	}
 	key, err := hex.DecodeString(f.Key)
 	if err != nil || len(key) != 32 {
-		return "", errors.New("неверный ключ файла")
+		return "", errors.New(T("неверный ключ файла"))
 	}
 	routes, err := routesFor(n.getSettings())
 	if err != nil {
@@ -676,7 +676,7 @@ func (n *NetChat) Download(ctx context.Context, f ChatFile, destDir string, prog
 		}
 	}
 	if last != nil {
-		return "", fmt.Errorf("не удалось скачать (возможно, срок хранения файла на обменнике истёк): %v", last)
+		return "", fmt.Errorf(T("не удалось скачать (возможно, срок хранения файла на обменнике истёк): %v"), last)
 	}
 	out := uniquePath(destDir, safeFileName(f.Name))
 	if err := chatDecryptFile(got, out, key); err != nil {

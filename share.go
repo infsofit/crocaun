@@ -10,9 +10,6 @@ import (
 	"time"
 )
 
-// allDevices - значение поля «Кому» на вкладке «Обмен»: отправить всем найденным устройствам в режиме обмена.
-const allDevices = "Все найденные устройства"
-
 func isServiceName(n string) bool {
 	return n == "" || strings.HasPrefix(n, ".") || n == textFileName || n == fromFileName
 }
@@ -236,7 +233,7 @@ func (w *ShareWatcher) Stop() {
 func resolveShareTargets(target string, known []Peer, selfID string) []string {
 	t := strings.TrimSpace(target)
 	var out []string
-	if t == "" || t == allDevices {
+	if t == "" || isAllDevices(t) {
 		for _, p := range discoverPeers(2*time.Second, selfID, roleRecv, planScan().Targets) {
 			out = append(out, p.Addr())
 		}

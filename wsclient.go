@@ -104,7 +104,7 @@ func wsDialRoots(ctx context.Context, rawURL string, r Route, timeout time.Durat
 	sum := sha1.Sum([]byte(key + wsGUID))
 	if resp.Header.Get("Sec-WebSocket-Accept") != base64.StdEncoding.EncodeToString(sum[:]) {
 		conn.Close()
-		return nil, errors.New("неверный ответ WebSocket")
+		return nil, errors.New(T("неверный ответ WebSocket"))
 	}
 	_ = conn.SetDeadline(time.Time{})
 	return &wsConn{c: conn, br: br}, nil
@@ -173,7 +173,7 @@ func (w *wsConn) ReadMessage(d time.Duration) ([]byte, error) {
 			n = binary.BigEndian.Uint64(b)
 		}
 		if n > 16<<20 {
-			return nil, errors.New("слишком большое сообщение")
+			return nil, errors.New(T("слишком большое сообщение"))
 		}
 		var mk []byte
 		if masked {

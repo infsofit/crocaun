@@ -278,8 +278,8 @@ func loadSettingsFrom(path string) Settings {
 	}
 	s.Locked = lockedAny || (s.Protect == "master" && !vaultUnlocked())
 	if lostAny {
-		s.SecretNote = "Не удалось расшифровать сохранённые пароли: файл настроек создан на другом компьютере " +
-			"или под другим пользователем Windows. Введите пароли заново."
+		s.SecretNote = T("Не удалось расшифровать сохранённые пароли: файл настроек создан на другом компьютере ") +
+			T("или под другим пользователем Windows. Введите пароли заново.")
 	}
 	return s
 }

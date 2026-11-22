@@ -26,7 +26,7 @@ const (
 	aesExtraID = 0x9901
 )
 
-var errZipPassword = errors.New("неверный пароль архива")
+var errZipPassword error = trErr("неверный пароль архива")
 
 // pbkdf2SHA1 - PBKDF2-HMAC-SHA1 (RFC 2898), чтобы не тянуть лишние зависимости.
 func pbkdf2SHA1(pw, salt []byte, iter, keyLen int) []byte {
@@ -249,10 +249,10 @@ func (a *aesReader) verify() error {
 	a.checked = true
 	got := make([]byte, aesMacLen)
 	if _, err := io.ReadFull(a.rest, got); err != nil {
-		return errors.New("архив повреждён (нет кода проверки)")
+		return errors.New(T("архив повреждён (нет кода проверки)"))
 	}
 	if !hmac.Equal(got, a.mac.Sum(nil)[:aesMacLen]) {
-		return errors.New("архив повреждён (код проверки не совпал)")
+		return errors.New(T("архив повреждён (код проверки не совпал)"))
 	}
 	return io.EOF
 }
@@ -304,7 +304,7 @@ func openZipEntry(f *zip.File, pw string) (io.ReadCloser, error) {
 		return openZipClassic(f, pw) // традиционное шифрование (Проводник Windows)
 	}
 	if !ok {
-		return nil, errors.New("неподдерживаемое шифрование архива")
+		return nil, errors.New(T("неподдерживаемое шифрование архива"))
 	}
 	if pw == "" {
 		return nil, errZipPassword
@@ -323,7 +323,7 @@ func openZipEntry(f *zip.File, pw string) (io.ReadCloser, error) {
 	}
 	total := int64(f.CompressedSize64) - int64(aesSaltLen+2+aesMacLen)
 	if total < 0 {
-		return nil, errors.New("архив повреждён")
+		return nil, errors.New(T("архив повреждён"))
 	}
 	ar := &aesReader{src: io.LimitReader(raw, total), rest: raw, ctr: newCtrLE(ek), mac: hmac.New(sha1.New, ak)}
 	e := &aesEntry{aes: ar}
@@ -334,7 +334,7 @@ func openZipEntry(f *zip.File, pw string) (io.ReadCloser, error) {
 		fr := flate.NewReader(ar)
 		e.rc, e.cl = fr, fr
 	default:
-		return nil, errors.New("неподдерживаемый способ сжатия в архиве")
+		return nil, errors.New(T("неподдерживаемый способ сжатия в архиве"))
 	}
 	return e, nil
 }
