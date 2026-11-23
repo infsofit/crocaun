@@ -814,6 +814,28 @@ func (p *chatPanel) onHistoryClick(pg *chatPage, x, y int) {
 	}
 }
 
+// setTitle обновляет название вкладки чата в главном окне (после смены языка).
+func (p *chatPanel) setTitle(t string) {
+	if p != nil {
+		p.title = t
+	}
+}
+
+// relabel перерисовывает тексты, собранные программой (списки участников и т.п.), после смены языка.
+func (p *chatPanel) relabel() {
+	for _, pg := range p.pages {
+		p.updRoster(pg)
+	}
+}
+
+// scrollEnd прокручивает поле переписки к последнему сообщению.
+func scrollEnd(te *walk.TextEdit) {
+	n := u16len(te.Text())
+	te.SetTextSelection(n, n)
+	te.SendMessage(win.EM_SCROLLCARET, 0, 0)
+	te.SendMessage(win.WM_VSCROLL, win.SB_BOTTOM, 0)
+}
+
 // refreshKeep перерисовывает историю, сохраняя прокрутку.
 func (p *chatPanel) refreshKeep(pg *chatPage) {
 	line := int(pg.te.SendMessage(emGetFirstVisibleLine, 0, 0))
@@ -836,9 +858,7 @@ func (p *chatPanel) render(pg *chatPage, toEnd bool) {
 	_ = pg.te.SetText(pg.view.Text)
 	p.updRoster(pg)
 	if toEnd {
-		n := u16len(pg.view.Text)
-		pg.te.SetTextSelection(n, n)
-		pg.te.SendMessage(win.EM_SCROLLCARET, 0, 0)
+		scrollEnd(pg.te)
 	}
 	cur := pg.filesCB.CurrentIndex()
 	_ = pg.filesCB.SetModel(names)
@@ -917,6 +937,14 @@ func (p *chatPanel) onShown() {
 	i := p.tw.CurrentIndex()
 	if i < 0 {
 		return
+	}
+	// вкладка стала видимой: у скрытого поля прокрутка не срабатывает, поэтому прокручиваем к концу здесь
+	for _, pg := range p.pages {
+		if pg.page == p.tw.Pages().At(i) && pg.te != nil {
+			scrollEnd(pg.te)
+			te := pg.te
+			p.mw.Synchronize(func() { scrollEnd(te) })
+		}
 	}
 	for _, pg := range p.pages {
 		if pg.page == p.tw.Pages().At(i) && pg.unread && p.viewing(pg) {

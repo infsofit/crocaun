@@ -222,7 +222,7 @@ var enDict = map[string]string{
 	"Язык / Language:":     "Language:",
 	"Auto / Авто":          "Auto",
 	"Русский":              "Russian",
-	"Auto: русский, если Windows на русском, иначе английский. Применяется после перезапуска / Applied after restart": "Auto: Russian if Windows is Russian, English otherwise. Applied after restart",
+	"Auto: русский, если Windows на русском, иначе английский": "Auto: Russian if Windows is Russian, English otherwise",
 	"Папка чата / Chat folder:": "Chat folder:",
 	"Имя папки чата внутри рабочей папки. Существующая папка переименуется при следующем запуске; если в ней и в новой одинаковые файлы, остаются более новые": "Name of the chat folder inside the working folder. An existing folder is renamed at the next start; if it and the new one contain files with the same name, the newer ones stay",
 	"Адрес relay (host:порт); пусто = публичные relay croc:":                "Relay address (host:port); empty = public croc relays:",

@@ -12,7 +12,7 @@ Currently: **Windows 7 and newer, 32-bit** (also runs on 64-bit systems). Other 
 
 ## Running
 
-Download `crocaun.exe` from Releases (`latest`) and run it. No installation, PowerShell or .NET needed. Settings (`crocaun.ini`) live next to the exe; the program creates nothing else (temporary files are removed after a transfer).
+Download `crocaun.exe` from the newest release (Releases; every version is a separate release, old ones are kept) and run it. No installation, PowerShell or .NET needed. Settings (`crocaun.ini`) live next to the exe; the program creates nothing else (temporary files are removed after a transfer).
 
 ## Launch parameters and the working folder
 
@@ -29,7 +29,7 @@ Limitation: ports (UDP 29008, TCP 29009-29013, chat TCP 29014 and UDP 29015) are
 
 ## Language
 
-The interface is available in Russian and English. By default the language is chosen automatically: Russian if the Windows UI language is Russian, English otherwise. To switch manually: "Settings" -> "Language"; the choice is saved in `crocaun.ini` (`Lang=auto|ru|en`) and applied after a restart.
+The interface is available in Russian and English. By default the language is chosen automatically: Russian if the Windows UI language is Russian, English otherwise. To switch manually: "Settings" -> "Language"; the choice is saved in `crocaun.ini` (`Lang=auto|ru|en`) and applied immediately, without a restart (texts built by the program on the fly are refreshed at the next event).
 
 ## Chat
 

@@ -1,6 +1,15 @@
 Changelog format: one block per version, newest first. Sections: Added / Changed / Fixed.
 Header: "Chanlog HH:MM:SS  DD.MM.YYYY Weekday:"
 
+Chanlog 11:31:11  23.11.2026 Mo:
+Version 1.11
+  Added:
+  - Language switches immediately in Settings, no restart needed.
+  - Every version is now a separate GitHub release (v1.11, v1.10, ...); old releases are kept. Release notes are taken from this file.
+  Fixed:
+  - Chat scrolls to the newest message on start, when a chat tab is shown and when a new message arrives.
+  - False "ports are busy" warning at startup (the program was reporting its own chat port).
+
 Chanlog 05:22:54  22.11.2026 Su:
 Version 1.10
   Added:

@@ -210,6 +210,17 @@ jobs:
             TAG="${GITHUB_REF#refs/tags/}"
             gh release create "$TAG" crocaun.exe --title "crocaun v$VER ($TAG)" --notes "Версия $VER. Windows 7+ (32-bit), один exe. croc $CROC_VERSION, Go $GO_VERSION." || gh release upload "$TAG" crocaun.exe --clobber
           else
+            # каждая версия - отдельный выпуск (v<версия>); повторная сборка той же версии обновляет файл в её выпуске
+            TAG="v$VER"
+            awk -v v="$VER" 'BEGIN{f=0} /^Version /{f=($2==v)} /^Chanlog /{if(f)exit} f{print}' changelog.txt > notes.txt || true
+            [ -s notes.txt ] || echo "crocaun $VER" > notes.txt
+            echo "" >> notes.txt
+            echo "Windows 7+ (32-bit), один exe. croc $CROC_VERSION, Go $GO_VERSION. Сборка коммита $SHORT." >> notes.txt
             gh release delete latest --cleanup-tag -y || true
-            gh release create latest crocaun.exe --prerelease --target "$GITHUB_SHA" --title "crocaun v$VER (latest, $SHORT)" --notes "Версия $VER. Автоматическая сборка коммита $SHORT. Windows 7+ (32-bit), один exe. croc $CROC_VERSION, Go $GO_VERSION."
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              gh release upload "$TAG" crocaun.exe --clobber
+              gh release edit "$TAG" --notes-file notes.txt --title "crocaun v$VER"
+            else
+              gh release create "$TAG" crocaun.exe --target "$GITHUB_SHA" --title "crocaun v$VER" --notes-file notes.txt
+            fi
           fi

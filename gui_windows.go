@@ -20,7 +20,7 @@ import (
 )
 
 // appVersion - версия программы (показывается внизу окна).
-const appVersion = "1.10"
+const appVersion = "1.11"
 
 func crlf(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\n", "\r\n")
@@ -363,6 +363,7 @@ func guiMain(test bool) int {
 		}
 		return normLang(st.Lang)
 	}
+	uiBuilt := false
 	langIdx := 0
 	for i, v := range langVals {
 		if v == normLang(st.Lang) {
@@ -1555,9 +1556,28 @@ func guiMain(test bool) int {
 						Layout: VBox{},
 						Children: []Widget{
 							Composite{Layout: HBox{MarginsZero: true}, Children: []Widget{
-								Label{Text: T("Язык / Language:")},
-								ComboBox{AssignTo: &langCB, Model: []string{T("Auto / Авто"), T("Русский"), "English"}, CurrentIndex: langIdx, MinSize: Size{Width: 140},
-									ToolTipText: T("Auto: русский, если Windows на русском, иначе английский. Применяется после перезапуска / Applied after restart")},
+								Label{Text: "Language / Язык:"},
+								ComboBox{AssignTo: &langCB, Model: []string{"Auto / Авто", "Русский", "English"}, CurrentIndex: langIdx, MinSize: Size{Width: 140},
+									ToolTipText: T("Auto: русский, если Windows на русском, иначе английский"),
+									OnCurrentIndexChanged: func() {
+										// язык меняется сразу, без перезапуска
+										if !uiBuilt || langCB == nil || mw == nil {
+											return
+										}
+										was := isEnglish()
+										setLang(langPref())
+										if isEnglish() == was {
+											return
+										}
+										retranslateWindow(mw, curLang.Load().(string))
+										for _, cp := range []*chatPanel{chatLan, chatNet} {
+											if cp != nil {
+												cp.relabel()
+											}
+										}
+										chatLan.setTitle(T("Чат локально"))
+										chatNet.setTitle(T("Чат интернет"))
+									}},
 								Label{Text: T("Папка чата / Chat folder:")},
 								LineEdit{AssignTo: &chatDirLE, Text: func() string {
 									if st.ChatDir == "" {
@@ -2049,6 +2069,7 @@ func guiMain(test bool) int {
 		}()
 	}
 
+	uiBuilt = true
 	if !test {
 		// предупреждение о занятых портах (проверка сделана в начале запуска, до старта нашего чата и обмена)
 		go func() {
