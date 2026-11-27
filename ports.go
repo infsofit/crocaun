@@ -5,6 +5,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Порты с автоподбором. У каждого порта есть «слоты»: слот 0 - базовый порт (его занимает первая копия программы,
@@ -61,9 +62,11 @@ func listenTCPSlot(base int) (net.Listener, int, error) {
 }
 
 // pickRelayBlock выбирает блок портов relay (lanRelayPorts, сдвинутый на слот), в котором свободны все порты.
+// Базовый блок получает несколько попыток: после остановки режима обмена порты освобождаются не мгновенно, а
+// адрес устройства лучше сохранять прежним.
 func pickRelayBlock() ([]string, error) {
 	var last error
-	for slot := 0; slot < portSlots; slot++ {
+	try := func(slot int) []string {
 		var ports []string
 		var ls []net.Listener
 		ok := true
@@ -81,7 +84,19 @@ func pickRelayBlock() ([]string, error) {
 			_ = l.Close()
 		}
 		if ok {
-			return ports, nil
+			return ports
+		}
+		return nil
+	}
+	for i := 0; i < 20; i++ { // до ~3 секунд для базового блока
+		if p := try(0); p != nil {
+			return p, nil
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+	for slot := 1; slot < portSlots; slot++ {
+		if p := try(slot); p != nil {
+			return p, nil
 		}
 	}
 	return nil, last
