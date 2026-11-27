@@ -1105,13 +1105,13 @@ func selfTest() int {
 		okPlan := len(h24) == 254 && h24[0].String() == "192.168.1.1" && h24[253].String() == "192.168.1.254" &&
 			len(h16) == 254 && h16[0].String() == "10.1.7.1" && len(h22) == 1022 && len(h30) == 2 && len(plan.Targets) >= 1
 		for _, tg := range plan.Targets {
-			if !strings.HasSuffix(tg, ":"+itoa(lanDiscPort)) {
+			if _, pt, e := net.SplitHostPort(tg); e != nil || !isSlotPort(lanDiscPort, mustAtoi(pt)) {
 				okPlan = false
 			}
 		}
 		for _, ip := range localIPv4s() {
 			for _, tg := range plan.Targets {
-				if tg == net.JoinHostPort(ip, itoa(lanDiscPort)) {
+				if h, _, e := net.SplitHostPort(tg); e == nil && h == ip {
 					okPlan = false // себя не опрашиваем
 				}
 			}
@@ -1121,6 +1121,62 @@ func selfTest() int {
 		} else {
 			fails++
 			testLogf("LAN SCAN PLAN: FAIL %d/%d/%d/%d targets=%d", len(h24), len(h16), len(h22), len(h30), len(plan.Targets))
+		}
+	}
+
+	// 4e) порты со слотами: занятый базовый порт - берётся следующий слот; поиск находит устройство в другом слоте
+	{
+		okPorts := true
+		why := ""
+		u1, p1, e1 := listenUDPSlot(29508)
+		u2, p2, e2 := listenUDPSlot(29508)
+		t1, q1, e3 := listenTCPSlot(29514)
+		t2, q2, e4 := listenTCPSlot(29514)
+		if e1 != nil || e2 != nil || e3 != nil || e4 != nil || p1 != 29508 || p2 != 29608 || q1 != 29514 || q2 != 29614 {
+			okPorts, why = false, fmt.Sprintf("udp %d,%d tcp %d,%d %v %v %v %v", p1, p2, q1, q2, e1, e2, e3, e4)
+		}
+		for _, c := range []interface{ Close() error }{u1, u2, t1, t2} {
+			if c != nil && !isNilIface(c) {
+				_ = c.Close()
+			}
+		}
+		oldP, oldD := lanRelayPorts, lanDiscPort
+		lanRelayPorts = []string{"29519", "29520", "29521", "29522", "29523"}
+		lanDiscPort = 29528
+		busy, _ := net.Listen("tcp4", ":29519")
+		blk, be := pickRelayBlock()
+		if be != nil || len(blk) != 5 || blk[0] != "29619" || blk[4] != "29623" {
+			okPorts, why = false, fmt.Sprintf("relay block %v %v", blk, be)
+		}
+		if busy != nil {
+			_ = busy.Close()
+		}
+		// два «профиля»: второй ответчик встаёт на соседний слот, оба находятся
+		stop1, r1 := startResponder("prof-1", roleRecv, "Профиль 1", 29519)
+		stop2, r2 := startResponder("prof-2", roleRecv, "Профиль 2", 29619)
+		var targets []string
+		for _, p := range slotPorts(lanDiscPort, portSlots) {
+			targets = append(targets, net.JoinHostPort("127.0.0.1", itoa(p)))
+		}
+		found := discoverPeers(1200*time.Millisecond, "me-ports", roleRecv, targets)
+		if r1 != nil || r2 != nil || len(found) != 2 {
+			okPorts, why = false, fmt.Sprintf("responders %v %v found %d", r1, r2, len(found))
+		}
+		if stop1 != nil {
+			stop1()
+		}
+		if stop2 != nil {
+			stop2()
+		}
+		lanRelayPorts, lanDiscPort = oldP, oldD
+		if okPorts && portRanges(29009, 5) != "29009-29013,29109-29113,29209-29213,29309-29313,29409-29413,29509-29513,29609-29613,29709-29713,29809-29813,29909-29913" {
+			okPorts, why = false, "portRanges: "+portRanges(29009, 5)
+		}
+		if okPorts {
+			testLogf("PORT SLOTS (busy base port -> next slot, relay block shift, two profiles found by discovery, firewall ranges): OK")
+		} else {
+			fails++
+			testLogf("PORT SLOTS: FAIL %s", why)
 		}
 	}
 	// 4c) меню Проводника и пересылка путей в уже открытое окно
@@ -1294,4 +1350,15 @@ func netTest() int {
 	}
 	testLogf("NETTEST: FAIL")
 	return 1
+}
+
+// isNilIface: интерфейс хранит typed nil (например, (*net.UDPConn)(nil)).
+func isNilIface(c interface{ Close() error }) bool {
+	switch v := c.(type) {
+	case *net.UDPConn:
+		return v == nil
+	case net.Listener:
+		return v == nil
+	}
+	return false
 }

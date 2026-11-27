@@ -20,7 +20,7 @@ func fwNames() (tcp, udp string) {
 	exe, _ := os.Executable()
 	h := sha256.Sum256([]byte(strings.ToLower(exe)))
 	id := hex.EncodeToString(h[:3])
-	return "crocau LAN TCP " + id, "crocau LAN UDP " + id
+	return "crocau LAN TCP " + id + " s", "crocau LAN UDP " + id + " s" // " s" - правила на все слоты портов
 }
 
 // fwChatNames - правила для локального чата (TCP-порт сообщений и UDP-порт поиска).
@@ -49,8 +49,17 @@ func fwPresent() bool {
 	return true
 }
 
-func tcpRange() string {
-	return lanRelayPorts[0] + "-" + lanRelayPorts[len(lanRelayPorts)-1]
+func tcpRange() string { return portRanges(mustAtoi(lanRelayPorts[0]), len(lanRelayPorts)) }
+
+// fwOldNames - имена правил прежних версий (только базовые порты); при установке и удалении они убираются.
+func fwOldNames() []string {
+	t, u := fwNames()
+	ct, cu := fwChatNames()
+	var out []string
+	for _, n := range []string{t, u, ct, cu} {
+		out = append(out, strings.TrimSuffix(n, " s"))
+	}
+	return out
 }
 
 // fwInstallDirect создаёт правила (нужны права администратора).
@@ -59,19 +68,22 @@ func fwInstallDirect() error {
 	if err != nil {
 		return err
 	}
+	for _, o := range fwOldNames() {
+		_ = netsh("delete", "rule", "name="+o)
+	}
 	tcp, udp := fwNames()
 	_ = netsh("delete", "rule", "name="+tcp)
 	_ = netsh("delete", "rule", "name="+udp)
 	e1 := netsh("add", "rule", "name="+tcp, "dir=in", "action=allow", "protocol=TCP", "localport="+tcpRange(),
 		"program="+exe, "profile=any", "enable=yes")
-	e2 := netsh("add", "rule", "name="+udp, "dir=in", "action=allow", "protocol=UDP", "localport="+itoa(lanDiscPort),
+	e2 := netsh("add", "rule", "name="+udp, "dir=in", "action=allow", "protocol=UDP", "localport="+portRanges(lanDiscPort, 1),
 		"program="+exe, "profile=any", "enable=yes")
 	ctcp, cudp := fwChatNames()
 	_ = netsh("delete", "rule", "name="+ctcp)
 	_ = netsh("delete", "rule", "name="+cudp)
-	e3 := netsh("add", "rule", "name="+ctcp, "dir=in", "action=allow", "protocol=TCP", "localport="+itoa(chatTCPPort),
+	e3 := netsh("add", "rule", "name="+ctcp, "dir=in", "action=allow", "protocol=TCP", "localport="+portRanges(chatTCPPort, 1),
 		"program="+exe, "profile=any", "enable=yes")
-	e4 := netsh("add", "rule", "name="+cudp, "dir=in", "action=allow", "protocol=UDP", "localport="+itoa(chatDiscPort),
+	e4 := netsh("add", "rule", "name="+cudp, "dir=in", "action=allow", "protocol=UDP", "localport="+portRanges(chatDiscPort, 1),
 		"program="+exe, "profile=any", "enable=yes")
 	for _, e := range []error{e1, e2, e3, e4} {
 		if e != nil {
@@ -82,6 +94,9 @@ func fwInstallDirect() error {
 }
 
 func fwRemoveDirect() error {
+	for _, o := range fwOldNames() {
+		_ = netsh("delete", "rule", "name="+o)
+	}
 	tcp, udp := fwNames()
 	e1 := netsh("delete", "rule", "name="+tcp)
 	e2 := netsh("delete", "rule", "name="+udp)

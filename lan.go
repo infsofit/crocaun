@@ -55,7 +55,7 @@ func (p Peer) Label() string {
 // startResponder отвечает на поисковые запросы по UDP от имени устройства в роли role.
 // Возвращает функцию остановки. Один UDP-порт: одновременно возможна только одна роль на компьютере.
 func startResponder(id, role, name string, relayPort int) (func(), error) {
-	conn, err := net.ListenUDP("udp4", &net.UDPAddr{Port: lanDiscPort})
+	conn, _, err := listenUDPSlot(lanDiscPort) // первый свободный слот: базовый порт или +100, +200...
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +174,9 @@ func broadcastTargets() []string {
 	}
 	var out []string
 	for ip := range set {
-		out = append(out, net.JoinHostPort(ip, itoa(lanDiscPort)))
+		for _, p := range slotPorts(lanDiscPort, portSlots) {
+			out = append(out, net.JoinHostPort(ip, itoa(p)))
+		}
 	}
 	sort.Strings(out)
 	return out
@@ -275,10 +277,13 @@ func planScanPort(port int) ScanPlan {
 	var plan ScanPlan
 	own := map[string]bool{}
 	seen := map[string]bool{}
-	add := func(host string) {
+	// slots: сколько слотов порта опрашивать у этого адреса (широковещательно - все, по одному адресу - первые)
+	add := func(host string, slots int) {
 		if !seen[host] {
 			seen[host] = true
-			plan.Targets = append(plan.Targets, net.JoinHostPort(host, itoa(port)))
+			for _, p := range slotPorts(port, slots) {
+				plan.Targets = append(plan.Targets, net.JoinHostPort(host, itoa(p)))
+			}
 		}
 	}
 	type ifa struct {
@@ -300,10 +305,10 @@ func planScanPort(port int) ScanPlan {
 			}
 		}
 	}
-	add("255.255.255.255")
+	add("255.255.255.255", portSlots)
 	for _, it := range list {
 		if b := bcastOf(it.n.IP, it.n.Mask); b != nil {
-			add(b.String())
+			add(b.String(), portSlots)
 		}
 	}
 	for _, it := range list {
@@ -314,7 +319,7 @@ func planScanPort(port int) ScanPlan {
 			if own[h.String()] {
 				continue
 			}
-			add(h.String())
+			add(h.String(), scanUnicastSlots)
 			n++
 			if first == "" {
 				first = h.String()

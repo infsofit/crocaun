@@ -1,6 +1,16 @@
 Changelog format: one block per version, newest first. Sections: Added / Changed / Fixed.
 Header: "Chanlog HH:MM:SS  DD.MM.YYYY Weekday:"
 
+Chanlog 17:20:00  27.11.2026 Fr:
+Version 1.12
+  Added:
+  - Ports are chosen automatically: every port has 10 "slots" (base port, +100, +200, ...). The first copy of the program keeps the base ports (29008, 29009-29013, 29014, 29015), further copies/profiles take the first free slot. Device search asks all slots; replies already carry the real port. Firewall rules cover all slots.
+  - Ports in use are shown (exchange start message, chat "Devices" window).
+  - docs/SYNC-CHANGELOG.md: technical changelog and protocol reference for porting features to Android / Raspberry Pi.
+  Changed:
+  - The "ports are busy" warning at startup is removed (no longer needed).
+  - Firewall rules are re-created once (new names with " s"); old rules are removed.
+
 Chanlog 11:31:11  23.11.2026 Mo:
 Version 1.11
   Added:

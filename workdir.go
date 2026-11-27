@@ -2,12 +2,10 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 )
 
 // Параметр запуска -w / --workdir <папка>: все рабочие файлы (crocaun.ini, папка чата, Share, приём) лежат в этой папке,
@@ -75,51 +73,4 @@ func applyWorkdir() error {
 	exeDirOverride = abs
 	os.Args = append([]string{os.Args[0]}, rest...)
 	return nil
-}
-
-// checkPorts проверяет порты, нужные программе, и возвращает описания занятых. Раздельные профили с одинаковыми
-// портами мешают друг другу; полноценное решение - в TODO.md.
-func checkPorts() []string {
-	var busy []string
-	// Проверка не должна вызывать запрос брандмауэра Windows, поэтому на всех адресах ничего не слушаем:
-	// TCP - пробное подключение к 127.0.0.1 (отказ = порт свободен), UDP - пробная привязка к 127.0.0.1 (приблизительно).
-	tcp := func(p int) bool {
-		c, err := net.DialTimeout("tcp4", fmt.Sprintf("127.0.0.1:%d", p), 300*time.Millisecond)
-		if err != nil {
-			return true
-		}
-		_ = c.Close()
-		return false
-	}
-	udp := func(p int) bool {
-		c, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: p})
-		if err != nil {
-			return false
-		}
-		_ = c.Close()
-		return true
-	}
-	if !udp(lanDiscPort) {
-		busy = append(busy, fmt.Sprintf("UDP %d", lanDiscPort))
-	}
-	free := 0
-	for _, p := range lanRelayPorts {
-		if n, err := fmt.Sscanf(p, "%d", new(int)); n == 1 && err == nil {
-			var v int
-			fmt.Sscanf(p, "%d", &v)
-			if tcp(v) {
-				free++
-			}
-		}
-	}
-	if free == 0 {
-		busy = append(busy, "TCP "+strings.Join(lanRelayPorts, ", "))
-	}
-	if !tcp(chatTCPPort) {
-		busy = append(busy, fmt.Sprintf("TCP %d", chatTCPPort))
-	}
-	if !udp(chatDiscPort) {
-		busy = append(busy, fmt.Sprintf("UDP %d", chatDiscPort))
-	}
-	return busy
 }

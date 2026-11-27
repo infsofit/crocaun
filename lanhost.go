@@ -34,12 +34,16 @@ func (h *HostSession) Close() {
 // или вводит адрес вручную). Возвращает задание отправки (его журнал показывает ход), сессию (её надо закрыть
 // по окончании) и поясняющее сообщение для журнала.
 func startHostedSend(s Settings, pw, text string, items []string, name string) (*Job, *HostSession, string, error) {
-	port := lanRelayPorts[0]
+	block, perr := pickRelayBlock()
+	if perr != nil {
+		return nil, nil, "", fmt.Errorf(T("нет свободных портов для relay: %v"), perr)
+	}
+	port := block[0]
 	work, err := newWork()
 	if err != nil {
 		return nil, nil, "", err
 	}
-	ports := strings.Join(lanRelayPorts, ",")
+	ports := strings.Join(block, ",")
 	relay := startJob(JobSpec{Work: work, MkArgs: func(string) []string {
 		return []string{"relay", "--port", port, "--ports", ports}
 	}})

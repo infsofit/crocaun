@@ -21,7 +21,7 @@ func waitFor(d time.Duration, f func() bool) bool {
 func chatTestNode(name string, tcp, disc int) (*ChatNode, string) {
 	dir, _ := os.MkdirTemp("", "crocau-chat-test")
 	n := NewChatNode(dir, randHex(8), name)
-	n.tcpPort, n.discPort = tcp, disc
+	n.tcpPort, n.discPort, n.discBase, n.autoPorts = tcp, disc, disc, false
 	n.allowLoopback, n.noAutoScan = true, true
 	return n, dir
 }

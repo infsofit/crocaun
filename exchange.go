@@ -99,13 +99,17 @@ func (x *Exchange) Start(pw, out, name string, onEvent func(ExchangeEvent)) erro
 	if err := os.MkdirAll(out, 0755); err != nil {
 		return fmt.Errorf(T("не удалось создать папку Share: %v"), err)
 	}
-	port := lanRelayPorts[0]
+	block, perr := pickRelayBlock()
+	if perr != nil {
+		return fmt.Errorf(T("нет свободных портов для relay: %v"), perr)
+	}
+	port := block[0]
 
 	work, err := newWork()
 	if err != nil {
 		return err
 	}
-	ports := strings.Join(lanRelayPorts, ",")
+	ports := strings.Join(block, ",")
 	relay := startJob(JobSpec{Work: work, MkArgs: func(string) []string {
 		return []string{"relay", "--port", port, "--ports", ports}
 	}})
@@ -135,7 +139,7 @@ func (x *Exchange) Start(pw, out, name string, onEvent func(ExchangeEvent)) erro
 		x.mu.Unlock()
 	}
 	ips := localIPv4s()
-	msg := T("Режим обмена включён. Адрес этого устройства: ") + strings.Join(ips, ", ")
+	msg := T("Режим обмена включён. Адрес этого устройства: ") + strings.Join(ips, ", ") + Tf(" (порт %s)", port)
 	if len(ips) == 0 {
 		msg = T("Режим обмена включён (сетевых адресов не найдено)")
 	}

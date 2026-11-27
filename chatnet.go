@@ -89,6 +89,8 @@ type ChatNode struct {
 
 	tcpPort       int
 	discPort      int
+	discBase      int      // базовый UDP-порт поиска (слоты: +100, +200...)
+	autoPorts     bool     // подбирать свободные порты по слотам (в тестах - нет)
 	scanTargets   []string // если задано - только эти адреса для поиска (тесты)
 	allowLoopback bool
 	noAutoScan    bool
@@ -101,7 +103,7 @@ type ChatNode struct {
 func NewChatNode(dir, uid, name string) *ChatNode {
 	return &ChatNode{Dir: dir, UID: uid, name: name, nodeID: randHex(6), rooms: map[string]*ChatRoom{},
 		peers: map[string]*chatConn{}, cands: map[string]*chatCand{}, files: map[string]string{},
-		tcpPort: chatTCPPort, discPort: chatDiscPort, stop: make(chan struct{})}
+		tcpPort: chatTCPPort, discPort: chatDiscPort, discBase: chatDiscPort, autoPorts: true, stop: make(chan struct{})}
 }
 
 func (n *ChatNode) SetCallbacks(upd func(string), peers func()) { n.OnUpdate, n.OnPeers = upd, peers }
@@ -139,7 +141,16 @@ func (n *ChatNode) saveFilesLocked() {
 func (n *ChatNode) Start() error {
 	_ = os.MkdirAll(n.histDir(), 0o700)
 	n.loadFiles()
-	ln, err := net.Listen("tcp4", fmt.Sprintf(":%d", n.tcpPort))
+	var ln net.Listener
+	var err error
+	if n.autoPorts {
+		var p int
+		if ln, p, err = listenTCPSlot(chatTCPPort); err == nil {
+			n.tcpPort = p
+		}
+	} else {
+		ln, err = net.Listen("tcp4", fmt.Sprintf(":%d", n.tcpPort))
+	}
 	if err != nil {
 		return fmt.Errorf(T("порт чата %d занят: %v"), n.tcpPort, err)
 	}
@@ -155,7 +166,16 @@ func (n *ChatNode) Start() error {
 			go n.serveConn(c, false)
 		}
 	}()
-	if u, err := net.ListenUDP("udp4", &net.UDPAddr{Port: n.discPort}); err == nil {
+	var u *net.UDPConn
+	if n.autoPorts {
+		var p int
+		if u, p, err = listenUDPSlot(n.discBase); err == nil {
+			n.discPort = p
+		}
+	} else {
+		u, err = net.ListenUDP("udp4", &net.UDPAddr{Port: n.discPort})
+	}
+	if err == nil {
 		n.udp = u
 		n.wg.Add(1)
 		go n.respond(u)
@@ -712,7 +732,7 @@ func (n *ChatNode) Scan(wait time.Duration) []string {
 	if n.scanTargets != nil {
 		targets = n.scanTargets
 	} else {
-		plan := planScanPort(n.discPort)
+		plan := planScanPort(n.discBase)
 		targets, lines = plan.Targets, plan.Lines
 	}
 	q := []byte(chatDiscQuery + n.nodeID)

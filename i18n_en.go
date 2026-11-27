@@ -501,4 +501,7 @@ var enDict = map[string]string{
 	"изображения":        "images",
 	"\n\nСвой список серверов: файл ":                                     "\n\nYour own server list: the file ",
 	" (по одному адресу wss://... в строке), затем перезапуск программы.": " (one wss://... address per line), then restart the program.",
+	"нет свободных портов для relay: %v":                                  "no free ports for the relay: %v",
+	"Порты чата: TCP %d, UDP-поиск %d":                                    "Chat ports: TCP %d, UDP search %d",
+	" (порт %s)": " (port %s)",
 }

@@ -436,7 +436,11 @@ func (p *chatPanel) showPeers() {
 		showTextDialog(p.mw, T("Серверы интернет-чата"), sb.String())
 		return
 	}
-	sb.WriteString(T("Этот компьютер: ") + p.node.Name() + "  " + strings.Join(localIPv4s(), ", ") + "\n\n")
+	sb.WriteString(T("Этот компьютер: ") + p.node.Name() + "  " + strings.Join(localIPv4s(), ", ") + "\n")
+	if cn, ok := p.node.(*ChatNode); ok {
+		sb.WriteString(Tf("Порты чата: TCP %d, UDP-поиск %d", cn.tcpPort, cn.discPort) + "\n")
+	}
+	sb.WriteString("\n")
 	info := p.node.PeerInfo()
 	if len(info) == 0 {
 		sb.WriteString(T("Подключённых устройств нет."))

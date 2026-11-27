@@ -20,7 +20,7 @@ import (
 )
 
 // appVersion - версия программы (показывается внизу окна).
-const appVersion = "1.11"
+const appVersion = "1.12"
 
 func crlf(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\n", "\r\n")
@@ -108,11 +108,6 @@ func applyLangAndChatDir(st Settings, test bool) {
 }
 
 func guiMain(test bool) int {
-	// порты проверяем первыми, пока наши собственные чат и обмен ещё не запущены (иначе программа ругалась бы на саму себя)
-	var portsAtStart []string
-	if !test {
-		portsAtStart = checkPorts()
-	}
 	st := loadSettings()
 	applyLangAndChatDir(st, test)
 	if st.Locked {
@@ -2070,18 +2065,6 @@ func guiMain(test bool) int {
 	}
 
 	uiBuilt = true
-	if !test {
-		// предупреждение о занятых портах (проверка сделана в начале запуска, до старта нашего чата и обмена)
-		go func() {
-			if busy := portsAtStart; len(busy) > 0 {
-				time.Sleep(700 * time.Millisecond)
-				mw.Synchronize(func() {
-					walk.MsgBox(mw, "crocaun", T("Заняты порты, нужные программе:")+"\r\n"+strings.Join(busy, "\r\n")+"\r\n\r\n"+
-						T("Скорее всего, запущена ещё одна копия (другой профиль). Функции, использующие эти порты (локальный чат, обмен по сети), могут работать неправильно. Автоматическое решение конфликта портов запланировано (см. TODO.md)."), walk.MsgBoxIconWarning)
-				})
-			}
-		}()
-	}
 	if test {
 		mw.Run()
 	} else {

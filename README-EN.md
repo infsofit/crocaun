@@ -25,7 +25,7 @@ crocaun.exe --send path...        window with files added (Explorer menu)
 
 `-w` / `--workdir <folder>` (also `-w=folder`, `--workdir=folder`) moves **all** working files and folders (`crocaun.ini`, chat folder, Share, `received`, error log) into that folder; it is created if missing. A relative path is taken from the process's current folder; `%VAR%` variables are expanded. This lets one exe run several independent profiles (for example two chats with different names), each with its own settings.
 
-Limitation: ports (UDP 29008, TCP 29009-29013, chat TCP 29014 and UDP 29015) are the same for all copies. At startup the program checks whether they are busy and shows a warning; a full solution (automatic port selection) is planned, see TODO.md. For now two profiles must not use the local chat and exchange mode at the same time.
+Ports are chosen automatically: the first copy takes the base ports (UDP 29008, TCP 29009-29013, chat TCP 29014 and UDP 29015), further copies/profiles take the first free "slot" (base port + 100, +200 ... up to +900). Device search asks all slots, firewall rules cover all of them. Protocol details: [docs/SYNC-CHANGELOG.md](docs/SYNC-CHANGELOG.md).
 
 ## Language
 
